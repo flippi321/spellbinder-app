@@ -1,0 +1,92 @@
+import type {
+  Bracket,
+  Card,
+  CollectionItem,
+  Deck,
+  DeckCard,
+  Game,
+  GameNight,
+  LoanRequest,
+  LoanStatus,
+  Playgroup,
+  Profile,
+  Rsvp,
+} from '@/types';
+
+/**
+ * Repository contracts. Stores talk to these; implementations talk to services.
+ * Each has a mock (seed data, the default) and a Supabase implementation — `getRepos()`
+ * picks one from EXPO_PUBLIC_DATA_MODE.
+ */
+
+export interface SessionRepo {
+  /** The signed-in user's profile, or null when signed out. */
+  currentUser(): Promise<Profile | null>;
+  signInWithOtp(email: string): Promise<void>;
+  verifyOtp(email: string, code: string): Promise<Profile | null>;
+  signOut(): Promise<void>;
+}
+
+export interface CardRepo {
+  /** Cards by Scryfall printing id. */
+  getByIds(ids: string[]): Promise<Card[]>;
+  /** One representative printing per oracle id. */
+  getByOracleIds(oracleIds: string[]): Promise<Card[]>;
+  /** Exact (or fuzzy) name lookup; null when Scryfall has no match. */
+  findByName(name: string, options?: { fuzzy?: boolean }): Promise<Card | null>;
+  autocomplete(query: string): Promise<string[]>;
+  getPrintings(oracleId: string): Promise<Card[]>;
+  /** Remember cards (Supabase: upsert into the shared `cards` cache table). */
+  save(cards: Card[]): Promise<void>;
+}
+
+export interface CollectionRepo {
+  list(userId: string): Promise<CollectionItem[]>;
+  upsert(item: CollectionItem): Promise<CollectionItem>;
+  remove(itemId: string): Promise<void>;
+}
+
+export interface NewDeck {
+  ownerId: string;
+  name: string;
+  commanderOracleId: string;
+  theme: string;
+  bracket: Bracket;
+  cards: DeckCard[];
+}
+
+export interface DeckRepo {
+  list(ownerId: string): Promise<Deck[]>;
+  create(deck: NewDeck): Promise<Deck>;
+  upsertCard(deckId: string, card: DeckCard): Promise<void>;
+  removeCard(deckId: string, oracleId: string): Promise<void>;
+}
+
+/** Everything the Group tab needs, loaded in one go. */
+export interface PlaygroupSnapshot {
+  playgroup: Playgroup;
+  members: Profile[];
+  nextGameNight: GameNight | null;
+  rsvps: Rsvp[];
+  games: Game[];
+  loans: LoanRequest[];
+  /** Other members' collection items — powers "Who has it?" and "Jonas has it" pills. */
+  memberItems: CollectionItem[];
+}
+
+export interface PlaygroupRepo {
+  /** The user's playgroup (the first one, for now), or null if they're not in one. */
+  load(userId: string): Promise<PlaygroupSnapshot | null>;
+  setRsvp(rsvp: Rsvp): Promise<void>;
+  updateLoan(loanId: string, status: LoanStatus): Promise<void>;
+  requestLoan(request: Pick<LoanRequest, 'cardOracleId' | 'requesterId' | 'ownerId' | 'note'>): Promise<LoanRequest>;
+  logGame(game: Omit<Game, 'id'>): Promise<Game>;
+}
+
+export interface Repos {
+  session: SessionRepo;
+  cards: CardRepo;
+  collection: CollectionRepo;
+  decks: DeckRepo;
+  playgroup: PlaygroupRepo;
+}
