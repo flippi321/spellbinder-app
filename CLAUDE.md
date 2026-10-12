@@ -1,0 +1,56 @@
+# Spellbinder — project memory for Claude Code
+
+Spellbinder is a free, non-commercial Magic: The Gathering **Commander** companion app for a small group of friends:
+collection tracking, deckbuilding, a playgroup layer (lending, game nights, "who has it?"), card scanning,
+and an AI deck advisor called the **Oracle**. The full product and design vision lives in the file below — read
+it before making product or UI decisions.
+
+@docs/VISION.md
+
+## Stack (decided — don't swap without asking)
+
+- **Expo (managed workflow) + React Native + TypeScript (strict)**, using the latest stable Expo SDK.
+- **Expo Router** for navigation (file-based routes in `app/`).
+- **Zustand** for client state (with `persist` + AsyncStorage for anything that should survive restarts).
+- **Supabase** (Postgres + Auth + Row Level Security + Edge Functions) as the backend.
+- **Scryfall API** for all card data and images. We never host card images ourselves.
+- Fonts: **Cinzel** (display) and **Manrope** (UI/body) via `@expo-google-fonts/*`.
+- Icons: inline stroke icons with `react-native-svg` (no emoji, no icon fonts with brand marks).
+- Tests: `jest-expo` + `@testing-library/react-native`.
+
+Always add Expo-compatible packages with `npx expo install <pkg>` so versions match the SDK.
+The app must keep running in **Expo Go** until we deliberately move to a dev build (no custom native modules yet).
+
+## Commands
+
+- Start: `npx expo start`
+- Typecheck: `npx tsc --noEmit`
+- Lint: `npx expo lint`
+- Test: `npm test`
+
+Run typecheck, lint and tests before saying a task is done.
+
+## Architecture rules
+
+- `app/` contains routes only — thin screens that compose components and read from stores.
+- `src/components/` reusable UI; `src/theme/` design tokens; `src/stores/` Zustand stores;
+  `src/services/` external APIs (Scryfall, Supabase, Oracle, scan); `src/data/` repositories + mock seed data;
+  `src/types/` domain types; `src/utils/` pure helpers.
+- Screens never call `fetch` directly. Stores call **repositories**; repositories call **services**.
+- Every repository has an interface plus a **mock** implementation (seed data) and a **Supabase** implementation.
+  `EXPO_PUBLIC_DATA_MODE=mock|supabase` picks one. Default is `mock` so the app works with zero backend setup.
+- One Zustand store per domain (`collection`, `decks`, `playgroup`, `scan`, `oracle`, `session`). Keep stores small;
+  derive values with selectors, not duplicated state.
+- All colors, spacing, radii and font styles come from `src/theme`. No hard-coded hex values in components.
+
+## Hard rules
+
+- **Never put the Claude/Anthropic API key (or any secret) in the app.** The Oracle calls a Supabase Edge Function;
+  the key lives in Supabase secrets. Only `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` go in the client.
+- **Scryfall etiquette:** 50–100 ms between requests (use the shared rate-limited client), cache responses,
+  use bulk data for large imports, and include the request headers Scryfall's docs ask for
+  (https://scryfall.com/docs/api). Never crop, distort or watermark card images; when showing `art_crop`, show the
+  artist name nearby.
+- Keep the app free and non-commercial, and show Wizards of the Coast's Fan Content Policy disclaimer in Settings/About.
+- Store collection items by **Scryfall printing `id`**; store deck cards by **`oracle_id`**. "Do I own this?" joins on `oracle_id`.
+- Accessibility: touch targets ≥ 44 pt, `accessibilityLabel` on icon-only buttons, text contrast ≥ 4.5:1.
