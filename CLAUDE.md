@@ -30,6 +30,20 @@ The app must keep running in **Expo Go** until we deliberately move to a dev bui
 
 Run typecheck, lint and tests before saying a task is done.
 
+## Skills (`.claude/skills/`)
+
+Use the matching skill instead of improvising; each one ends with a "Done when" checklist.
+
+- `feature-slice` — new data or persisted actions end to end: type → repo (mock + Supabase) → store → selector → UI.
+- `ui-component` — screens and components built to the design system, tokens and accessibility rules.
+- `supabase-migration` — schema changes: SQL migration + RLS, then mappers and both repos (the schema is shared with the website).
+- `scryfall` — anything that fetches, stores or shows card data or images.
+- `seed-data` — mock seed changes, `npm run seed:cards`, keeping the vision's numbers true.
+- `oracle-edge` — the real Oracle Edge Function and Claude API integration.
+- `write-tests` — test patterns (fake repos, RTL v14, fake clock).
+- `preflight` — the definition of done: tooling plus a hard-rule audit. Run it before reporting any task as finished.
+- `vision-review` — check a screen against `docs/VISION.md`.
+
 ## Architecture rules
 
 - `app/` contains routes only — thin screens that compose components and read from stores.
