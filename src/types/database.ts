@@ -175,11 +175,15 @@ export type Database = {
           card_faces: Json | null
           card_id: string
           collector_number: string
+          digital: boolean
           finishes: Database["public"]["Enums"]["card_finish"][]
           id: string
           image_uris: Json | null
+          lang: string | null
           rarity: string
+          released_at: string | null
           set: string
+          set_name: string | null
           updated_at: string
         }
         Insert: {
@@ -187,11 +191,15 @@ export type Database = {
           card_faces?: Json | null
           card_id: string
           collector_number: string
+          digital?: boolean
           finishes?: Database["public"]["Enums"]["card_finish"][]
           id: string
           image_uris?: Json | null
+          lang?: string | null
           rarity?: string
+          released_at?: string | null
           set: string
+          set_name?: string | null
           updated_at?: string
         }
         Update: {
@@ -199,11 +207,15 @@ export type Database = {
           card_faces?: Json | null
           card_id?: string
           collector_number?: string
+          digital?: boolean
           finishes?: Database["public"]["Enums"]["card_finish"][]
           id?: string
           image_uris?: Json | null
+          lang?: string | null
           rarity?: string
+          released_at?: string | null
           set?: string
+          set_name?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -222,13 +234,17 @@ export type Database = {
           cmc: number
           color_identity: string[]
           colors: string[] | null
+          edhrec_rank: number | null
+          game_changer: boolean
           id: string
+          keywords: string[]
           layout: string
           legalities: Json
           loyalty: string | null
           mana_cost: string | null
           name: string
           power: string | null
+          produced_mana: string[] | null
           rules_text: string | null
           toughness: string | null
           type_line: string
@@ -239,13 +255,17 @@ export type Database = {
           cmc?: number
           color_identity?: string[]
           colors?: string[] | null
+          edhrec_rank?: number | null
+          game_changer?: boolean
           id: string
+          keywords?: string[]
           layout?: string
           legalities?: Json
           loyalty?: string | null
           mana_cost?: string | null
           name: string
           power?: string | null
+          produced_mana?: string[] | null
           rules_text?: string | null
           toughness?: string | null
           type_line: string
@@ -256,13 +276,17 @@ export type Database = {
           cmc?: number
           color_identity?: string[]
           colors?: string[] | null
+          edhrec_rank?: number | null
+          game_changer?: boolean
           id?: string
+          keywords?: string[]
           layout?: string
           legalities?: Json
           loyalty?: string | null
           mana_cost?: string | null
           name?: string
           power?: string | null
+          produced_mana?: string[] | null
           rules_text?: string | null
           toughness?: string | null
           type_line?: string
@@ -763,6 +787,31 @@ export type Database = {
       }
     }
     Functions: {
+      card_versions_of: {
+        Args: { card: string }
+        Returns: {
+          artist: string | null
+          card_faces: Json | null
+          card_id: string
+          collector_number: string
+          digital: boolean
+          finishes: Database["public"]["Enums"]["card_finish"][]
+          id: string
+          image_uris: Json | null
+          lang: string | null
+          rarity: string
+          released_at: string | null
+          set: string
+          set_name: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "card_versions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       compact_card_price_history: {
         Args: { keep_daily_days?: number }
         Returns: number
@@ -784,6 +833,36 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      find_card: {
+        Args: { name: string }
+        Returns: {
+          card_faces: Json | null
+          cmc: number
+          color_identity: string[]
+          colors: string[] | null
+          edhrec_rank: number | null
+          game_changer: boolean
+          id: string
+          keywords: string[]
+          layout: string
+          legalities: Json
+          loyalty: string | null
+          mana_cost: string | null
+          name: string
+          power: string | null
+          produced_mana: string[] | null
+          rules_text: string | null
+          toughness: string | null
+          type_line: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "cards"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       join_playgroup: {
         Args: { code: string }
         Returns: {
@@ -800,6 +879,12 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      search_card_names: {
+        Args: { lim?: number; q: string }
+        Returns: {
+          name: string
+        }[]
       }
       snapshot_card_prices: { Args: never; Returns: number }
       sync_card_batch: {
