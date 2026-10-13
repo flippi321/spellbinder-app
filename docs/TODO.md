@@ -49,16 +49,14 @@ M6  Ship to friends       X-*                                                   
 
 These change what gets built. Each has a recommendation; record the decision here when it's made.
 
-- [ ] **D-1 Where does the 24 h card sync run?**
-  - *Recommended:* a **GitHub Actions** scheduled workflow running a Node script (`scripts/sync-cards.ts`) with the
-    service-role key in GitHub secrets. The repo is already on GitHub, there are no memory or time limits, and it can
-    reuse `slimCard` and the Scryfall client.
-  - *Alternative:* a Supabase Edge Function triggered by `pg_cron` + `pg_net`. Everything stays in Supabase, but Edge
-    Functions have tight memory and wall-clock limits, so the bulk file must be stream-parsed and the upsert split
-    across several invocations.
+- [x] **D-1 Where does the 24 h card sync run?** *Decided:* a **GitHub Actions** scheduled workflow in
+  `spellbinder-db` (`scripts/sync-cards.ts` + `.github/workflows/sync-cards.yml`), with the secret key in that repo's
+  Actions secrets. An Edge Function was ruled out: parsing the ~630 MB bulk file takes several seconds of CPU against
+  a 2 s per-request limit and 256 MB of memory, and a gzip stream can't be resumed mid-file across invocations.
 - [ ] **D-2 Which bulk file?** *Recommended:* `default_cards` (every printing, in English where it exists). Scanning,
   "Change printing" and collection items all need printings. `oracle_cards` (one row per card) is much smaller but
-  doesn't have every printing. Filter out `digital: true` rows either way.
+  doesn't have every printing. Filter out `digital: true` rows either way. *Status:* the sync uses `default_cards`
+  and skips digital and Art Series printings (tokens are kept).
 - [ ] **D-3 How does the scanner recognize cards?**
   - *Recommended first step:* **cloud recognition**. A Supabase Edge Function `scan` sends the photo to Claude
     (vision) and gets back name + set code + collector number. Keeps Expo Go, reads the printing too, works on foils
@@ -130,7 +128,7 @@ regenerate with `npm run db:types` after every migration that reaches the remote
 **Done when**
 - [x] `npm run typecheck` passes with generated types; no hand-written row types left.
 
-### SB-4 · Migration `0006_cards_sync.sql`: extend and lock down the card cache — P0
+### SB-4 · Migration `0007_cards_extend.sql`: extend and lock down the card cache — P0
 *Skill:* `supabase-migration` · *Depends on:* SB-2, D-1, D-2, D-4
 The cache is two tables since 0003: `cards` (rules, pk = Scryfall oracle_id) and `card_versions` (printings, pk =
 Scryfall id, already has `finishes card_finish[]`). Prices live in `card_prices` (0005), not on the cards.
@@ -143,8 +141,9 @@ Scryfall id, already has `finishes card_finish[]`). Prices live in `card_prices`
 3. **Tighten RLS:** once the sync fills the tables, drop the `cards` / `card_versions` insert and refresh policies so
    only the service role (the sync job) writes. Any signed-in user can currently overwrite shared card rows. Keep the
    client upsert as a fallback only until CC-3 has run once, then remove `CardRepo.save()` writes in Supabase mode.
-4. New table `card_sync_runs` (id, started_at, finished_at, bulk_updated_at, rows_upserted, status, error) with RLS
-   read for authenticated users, so the app can show "Card data updated 3 h ago" in About.
+4. ~~New table `card_sync_runs`~~ Done in `0006_card_sync.sql` (CC-2). For the new columns from step 1, also extend
+   `public.sync_card_batch` (create or replace) and `toRows` in `spellbinder-db/scripts/sync-cards.ts`, then run the
+   sync with `force` once so existing rows get them.
 5. SQL functions (security invoker, `stable`):
    - `search_card_names(q text, lim int)`: prefix + trigram match on distinct names, for autocomplete.
    - `find_card(name text)`: exact, then case-insensitive, then best trigram match above a similarity threshold, for
@@ -155,7 +154,7 @@ Scryfall id, already has `finishes card_finish[]`). Prices live in `card_prices`
    type, but not in the tables).
 
 **Done when**
-- [ ] Migration applies on top of 0005; new fields round-trip through `toCard`/`fromCard`.
+- [ ] Migration applies on top of 0006; new fields round-trip through `toCard`/`fromCard`.
 - [ ] A client JWT can no longer insert/update `cards` or `card_versions` (verified by an SQL test).
 
 ### SB-5 · Local seed data for Supabase — P1
@@ -266,51 +265,42 @@ answers lookups, autocomplete and printings **from Supabase first**, and only fa
 things the table doesn't have yet. On the device, `useCardStore` keeps the cards you actually use and refreshes them
 when they're older than 24 h. This cuts Scryfall API traffic to almost nothing (good etiquette) and makes the app faster.
 
-### CC-1 · Add bulk-data support to the Scryfall client — P0
-*Skill:* `scryfall` · *Depends on:* D-1, D-2
-1. Add `getBulkDataList()` (`GET /bulk-data`) to `createScryfallClient` so it uses the shared queue and headers.
-   Add a test with the fake clock.
-2. The bulk **file** itself is served from `data.scryfall.io` (not rate limited). Download it with a streaming request,
-   not the cached JSON helper (it's far too large for memory/AsyncStorage).
-
-**Done when**
-- [ ] `getBulkDataList()` is tested and returns the `default_cards` entry with `download_uri` and `updated_at`.
+### CC-1 · ~~Add bulk-data support to the Scryfall client~~ — dropped
+The sync lives in `spellbinder-db` (D-1) and reads `GET /bulk-data/default-cards` itself, so the app's Scryfall
+client doesn't need bulk-data support. Note Scryfall now serves bulk files as gzipped JSONL (`jsonl_download_uri`,
+`compressed_size`); the old `download_uri` / `size` fields are gone.
 
 ### CC-2 · The sync script — P0
-*Skill:* `scryfall` · *Depends on:* CC-1, SB-4
-`scripts/sync-cards.ts` (Node, run with `tsx`, reads `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` from env):
-1. Read the latest `card_sync_runs` row. If `bulk_updated_at` equals Scryfall's `updated_at`, exit early: nothing new.
-2. Insert a `card_sync_runs` row with status `running`.
-3. Stream-download `download_uri` and stream-parse the JSON array (e.g. `stream-json`). Never `JSON.parse` the whole file.
-4. For each card: skip `digital: true`, map with `slimCard` plus the SB-4 fields, collect into batches of ~1,000.
-5. Upsert each batch with the service-role client, in this order (foreign keys): `cards` (deduplicated by card id,
-   `onConflict: 'id'`), then `card_versions` (`onConflict: 'id'`), then `card_prices` from each card's `prices`
-   (`onConflict: 'version_id,source'`, `source: 'scryfall'`, `updated_at` = now). Split the card with the app's
-   `fromCard` mapper. Retry a batch up to 3 times with backoff.
-6. Never delete rows: collection items, decks, loans and games reference `cards` / `card_versions`.
-7. After the last batch: `rpc('snapshot_card_prices')` (today's prices of owned versions into `card_price_history`),
-   then `rpc('compact_card_price_history')` (keeps daily rows for 90 days, Mondays after that). Both are service-role only.
-8. Update the run row: `finished_at`, `rows_upserted`, `status: 'ok' | 'failed'`, `error`.
-9. Log progress (rows/s, total) for the Actions log.
+*Status:* done in `spellbinder-db` (0f85072). See its README → *Card sync*.
+`spellbinder-db/scripts/sync-cards.ts` (Node 24, no dependencies, reads `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`):
+1. Skips the run if the latest `ok` row in `card_sync_runs` loaded the same `updated_at` (`SYNC_FORCE=true` overrides).
+2. Streams the gzipped JSONL file line by line, skipping digital and Art Series printings.
+3. Maps each printing like `slimCard` + `fromCard`. **Keep `toRows` in step with those two** when they change.
+   Reversible cards take their rules from one face, so they don't rename the plain card.
+4. Sends batches of 1,000 to the service-role RPC `sync_card_batch` (migration 0006), which upserts cards, versions
+   and prices in one transaction and only rewrites cards and versions that changed. Never deletes rows.
+5. Calls `snapshot_card_prices` + `compact_card_price_history`, then marks the run `ok` or `failed`.
 
 **Done when**
-- [ ] Running it locally against `supabase start` fills `cards`, `card_versions` and `card_prices` with the full card pool
-  and a second run exits early.
-- [ ] Peak memory stays low (streaming); runtime is documented in the README.
+- [x] Running it locally against `supabase start` fills `cards`, `card_versions` and `card_prices` with the full card pool
+  and a second run exits early. (106,832 printings of 35,622 cards in ~17 s, 113 MB.)
+- [x] Peak memory stays low (streaming); runtime is documented in the README. (~300 MB peak.)
 
 ### CC-3 · Schedule it every 24 h — P0
-*Depends on:* CC-2
-1. `.github/workflows/sync-cards.yml`: `schedule: cron: '0 4 * * *'` (daily) + `workflow_dispatch` for manual runs.
-2. Secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` in the repo's Actions secrets (never in the app or `.env.example`).
-3. Fail the workflow (so GitHub emails you) if the run row ends as `failed`.
-4. *(If D-1 picked the Edge Function instead:* `supabase/functions/sync-cards` + a `pg_cron` job calling it through
-   `pg_net` with the service key from Vault. It must process the stream in chunks across several invocations to stay
-   under the function limits.)*
-5. After the first successful run, apply the SB-4 RLS lockdown and stop client-side `cards` upserts.
-6. Once its migration is on the remote, run `npm run db:types` in the app and commit `src/types/database.ts`.
+*Depends on:* CC-2 · *Status:* workflow and migration 0006 are live; waiting for the Actions secrets.
+1. [x] `spellbinder-db/.github/workflows/sync-cards.yml`: daily at 10:30 UTC (Scryfall publishes around 09:00 UTC) +
+   `workflow_dispatch` with a `force` option.
+2. [ ] Secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (a `sb_secret_…` key) in spellbinder-db's Actions secrets.
+   Then run it once by hand from the Actions tab.
+3. [x] A failed run fails the job, so GitHub emails you.
+4. [ ] After the first successful run, apply the SB-4 RLS lockdown and stop client-side `cards` upserts.
+5. [x] `src/types/database.ts` regenerated with 0006 (`types-0006`).
+
+GitHub turns scheduled workflows off after 60 days without a commit to spellbinder-db: if "Card data updated" gets
+old, re-enable it in the Actions tab.
 
 **Done when**
-- [ ] The job has run on schedule two days in a row; About shows the last sync time (CC-6 step 5).
+- [ ] The job has run on schedule two days in a row; About shows the last sync time (CC-5 step 5).
 
 ### CC-4 · Read cards from Supabase first — P0
 *Skill:* `scryfall` · *Depends on:* CC-3
