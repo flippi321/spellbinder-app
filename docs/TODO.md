@@ -58,8 +58,8 @@ These change what gets built. Each has a recommendation; record the decision her
   keeps tokens, but the scanner leaves them out (D-3). Scanning, "Change printing" and collection items need every
   printing, which rules out `oracle_cards` (one row per card). `all_cards` (every language) is several times bigger,
   and modern non-English cards don't need it: they print the same set code and collector number as the English
-  printing, so the scanner finds them that way (D-3 step 3). For the scanner, SB-4 adds `flavor_name`, `lang`,
-  `released_at` and `promo` to each version.
+  printing, so the scanner finds them that way (D-3 step 3). For the scanner, each version has `lang` and
+  `released_at` since 0008 (SB-4); `flavor_name` and `promo` are still to come (SB-4 step 1).
   *Revisit if* the group owns many old non-English cards. Those print no set code, so they could only be matched by
   their printed name, and only `all_cards` has those names.
 - [ ] **D-3 How does the scanner recognize cards?** *Decided (direction):* **on-device OCR, then name matching, then
@@ -153,34 +153,40 @@ regenerate with `npm run db:types` after every migration that reaches the remote
 **Done when**
 - [x] `npm run typecheck` passes with generated types; no hand-written row types left.
 
-### SB-4 · Migration `0007_cards_extend.sql`: extend and lock down the card cache — P0
+### SB-4 · Extend and lock down the card cache — P0
 *Skill:* `supabase-migration` · *Depends on:* SB-2, D-1, D-2, D-4
+*Status:* migration `0008_cards_extend.sql` is live (columns, indexes, sync, lookup functions). Open: `flavor_name`
+and `promo` (step 1), the RLS lockdown (step 3, after the first remote sync), and the app's mappers (step 6).
 The cache is two tables since 0003: `cards` (rules, pk = Scryfall oracle_id) and `card_versions` (printings, pk =
 Scryfall id, already has `finishes card_finish[]`). Prices live in `card_prices` (0005), not on the cards.
 1. Add the columns the features below need (all nullable/defaulted = backward compatible):
-   - `card_versions`: `released_at date`, `set_name text`, `lang text`, `digital boolean`, `scryfall_updated_at timestamptz`,
-     and for the scanner's printing choice (D-3) `flavor_name text` (front face's for DFCs) and `promo boolean`.
-   - `cards`: `game_changer boolean` (Commander Brackets), `produced_mana text[]` (ramp/land stats), `keywords text[]`,
-     `edhrec_rank int`.
-2. Indexes: `create extension pg_trgm` + GIN trigram index on `cards.name` (autocomplete and fuzzy match); unique index
-   on `card_versions (set, collector_number, lang)` (scanner lookup); index on `card_versions.card_id` (exists).
+   - ~~`card_versions`: `released_at date`, `set_name text`, `lang text`, `digital boolean`~~ Done in 0008.
+     `scryfall_updated_at` dropped: Scryfall's card objects have no update time to copy; `updated_at` and
+     `card_sync_runs` already tell how fresh the data is.
+   - Still open, for the scanner's printing choice (D-3): `flavor_name text` (front face's for DFCs) and
+     `promo boolean`, plus their `sync_card_batch` / `toRows` fields, in a new migration.
+   - ~~`cards`: `game_changer boolean`, `produced_mana text[]`, `keywords text[]`, `edhrec_rank int`~~ Done in 0008.
+2. ~~Indexes: `pg_trgm` + GIN trigram index on `cards.name`; unique index on `card_versions (set, collector_number,
+   lang)`~~ Done in 0008.
 3. **Tighten RLS:** once the sync fills the tables, drop the `cards` / `card_versions` insert and refresh policies so
    only the service role (the sync job) writes. Any signed-in user can currently overwrite shared card rows. Keep the
    client upsert as a fallback only until CC-3 has run once, then remove `CardRepo.save()` writes in Supabase mode.
-4. ~~New table `card_sync_runs`~~ Done in `0006_card_sync.sql` (CC-2). For the new columns from step 1, also extend
-   `public.sync_card_batch` (create or replace) and `toRows` in `spellbinder-db/scripts/sync-cards.ts`, then run the
-   sync with `force` once so existing rows get them.
-5. SQL functions (security invoker, `stable`):
+   Its own migration, shipped with that app change (CC-3 step 4).
+4. ~~New table `card_sync_runs`~~ Done in `0006_card_sync.sql` (CC-2). ~~Extend `public.sync_card_batch` and `toRows`
+   in `spellbinder-db/scripts/sync-cards.ts` for the new columns~~ Done in 0008. The sync hasn't run on the remote
+   project yet; its first run fills the new columns.
+5. ~~SQL functions (security invoker, `stable`)~~ Done in 0008:
    - `search_card_names(q text, lim int)`: prefix + trigram match on distinct names, for autocomplete.
-   - `find_card(name text)`: exact, then case-insensitive, then best trigram match above a similarity threshold, for
-     typed names and imports. (The scanner matches on the device, SC-4, unless D-3 (b) picks this RPC.)
+   - `find_card(name text)`: exact, then case-insensitive, then a face's name, then the best trigram match, for typed
+     names and imports. (The scanner matches on the device, SC-4, unless D-3 (b) picks this RPC.)
    - `card_versions_of(card uuid)`: a card's versions, newest first.
-6. After pushing the migration, run `npm run db:types` in the app (the row types follow), then update the mappers
-   and `slimCard` with the new fields (`set_name` is already in the TS
-   type, but not in the tables).
+6. ~~Run `npm run db:types` in the app~~ Done (types include 0008). Still open: update the mappers and `slimCard` with
+   the new fields (`set_name` and `released_at` are already in the TS type and `slimCard`, but not mapped to/from the
+   tables).
 
 **Done when**
-- [ ] Migration applies on top of 0006; new fields round-trip through `toCard`/`fromCard`.
+- [x] Migration applies on top of the previous ones (0008, live).
+- [ ] New fields round-trip through `toCard`/`fromCard`.
 - [ ] A client JWT can no longer insert/update `cards` or `card_versions` (verified by an SQL test).
 
 ### SB-5 · Local seed data for Supabase — P1
