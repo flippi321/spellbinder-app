@@ -14,30 +14,39 @@ import type {
   Rsvp,
   RsvpStatus,
 } from '@/types';
-import type { ScryfallCard, ScryfallCardFace } from '@/types/scryfall';
+import type { Enums, Json, Tables, TablesInsert } from '@/types/database';
+import type { ScryfallCard, ScryfallCardFace, ScryfallImageUris } from '@/types/scryfall';
 import { avatarColors, type AvatarColor } from '@/theme/colors';
 
 /**
- * Row shapes of the Supabase schema (spellbinder-db repo, supabase/migrations) and their camelCase domain twins.
- * TODO: replace these hand-written rows with `supabase gen types typescript` output.
+ * Rows of the Supabase schema and their camelCase domain twins. The row types come from the generated
+ * `src/types/database.ts` (`npm run db:types`), so a schema change that breaks a mapper fails `tsc`.
  */
 
-export interface ProfileRow {
-  id: string;
-  display_name: string;
-  initials: string;
-  avatar_color: string;
-}
+export type ProfileRow = Tables<'profiles'>;
+export type PlaygroupRow = Tables<'playgroups'>;
+export type CardRow = Tables<'cards'>;
+export type CardVersionRow = Tables<'card_versions'>;
+export type CollectionItemRow = Tables<'collection_items'>;
+export type DeckRow = Tables<'decks'>;
+export type DeckCardRow = Tables<'deck_cards'>;
+export type LoanRequestRow = Tables<'loan_requests'>;
+export type GameNightRow = Tables<'game_nights'>;
+export type RsvpRow = Tables<'rsvps'>;
+export type GameRow = Tables<'games'>;
 
-export interface PlaygroupRow {
-  id: string;
-  name: string;
-  invite_code: string;
-  created_by: string;
-}
+/** A version read with its card embedded: `select('*, card:cards(*)')`. */
+export type CardVersionWithCardRow = CardVersionRow & { card: CardRow };
 
+/** A deck read with its cards embedded: `select('*, deck_cards(*)')`. */
+export type DeckWithCardsRow = DeckRow & { deck_cards?: DeckCardRow[] };
+
+/**
+ * What the jsonb columns hold. Declared with `type`, not `interface`: only type aliases are assignable to `Json`, which
+ * is what lets the write mappers pass them to the typed client without a cast.
+ */
 /** Rules of one face of a card (`cards.card_faces`). */
-export interface CardFaceRow {
+export type CardFaceRow = {
   name: string;
   mana_cost?: string;
   type_line?: string;
@@ -46,118 +55,24 @@ export interface CardFaceRow {
   power?: string;
   toughness?: string;
   loyalty?: string;
-}
-
-/** One card, whatever the version. `id` is Scryfall's oracle_id. */
-export interface CardRow {
-  id: string;
-  name: string;
-  layout: string;
-  mana_cost: string | null;
-  cmc: number;
-  type_line: string;
-  rules_text: string | null;
-  power: string | null;
-  toughness: string | null;
-  loyalty: string | null;
-  colors: string[] | null;
-  color_identity: string[];
-  legalities: ScryfallCard['legalities'];
-  card_faces: CardFaceRow[] | null;
-  updated_at?: string;
-}
+};
 
 /** What one face looks like in one version (`card_versions.card_faces`). */
-export interface CardVersionFaceRow {
-  image_uris?: ScryfallCardFace['image_uris'];
+export type CardVersionFaceRow = {
+  image_uris?: ScryfallImageUris;
   artist?: string;
-}
+};
 
-/** One version (printing) of a card. `id` is Scryfall's id. */
-export interface CardVersionRow {
-  id: string;
-  card_id: string;
-  set: string;
-  collector_number: string;
-  rarity: string;
-  artist: string | null;
-  image_uris: ScryfallCard['image_uris'] | null;
-  card_faces: CardVersionFaceRow[] | null;
-  finishes: CardFinish[];
-  updated_at?: string;
-}
+/** Reads a jsonb column as the shape the write mappers put there. The one place the app trusts stored JSON. */
+export const fromJson = <T>(value: Json): T => value as T;
 
-/** A version read with its card embedded: `select('*, card:cards(*)')`. */
-export type CardVersionWithCardRow = CardVersionRow & { card: CardRow };
-
-export interface CollectionItemRow {
-  id: string;
-  user_id: string;
-  version_id: string;
-  card_id: string;
-  quantity: number;
-  finish: CardFinish;
-  condition: CardCondition;
-  created_at: string;
-  updated_at?: string;
-}
-
-export interface DeckCardRow {
-  deck_id: string;
-  card_id: string;
-  quantity: number;
-  category: string;
-  is_commander: boolean;
-}
-
-export interface DeckRow {
-  id: string;
-  owner_id: string;
-  name: string;
-  commander_card_id: string;
-  partner_card_id: string | null;
-  theme: string | null;
-  bracket: number;
-  created_at: string;
-  updated_at?: string;
-  deck_cards?: DeckCardRow[];
-}
-
-export interface LoanRequestRow {
-  id: string;
-  card_id: string;
-  requester_id: string;
-  owner_id: string;
-  status: string;
-  note: string | null;
-  created_at: string;
-  updated_at?: string;
-}
-
-export interface GameNightRow {
-  id: string;
-  playgroup_id: string;
-  starts_at: string;
-  location: string | null;
-  notes: string | null;
-}
-
-export interface RsvpRow {
-  game_night_id: string;
-  user_id: string;
-  status: string;
-}
-
-export interface GameRow {
-  id: string;
-  playgroup_id: string;
-  played_at: string;
-  winner_id: string;
-  winner_commander_card_id: string | null;
-  game_night_id: string | null;
-  player_count: number;
-  duration_minutes: number | null;
-}
+/** Fails `tsc` when the domain unions and the database enums drift apart. */
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+type Assert<T extends true> = T;
+export type DomainEnumsMatchDatabase = [
+  Assert<Same<CardCondition, Enums<'card_condition'>>>,
+  Assert<Same<CardFinish, Enums<'card_finish'>>>,
+];
 
 const FINISHES: readonly CardFinish[] = ['nonfoil', 'foil', 'etched'];
 
@@ -177,20 +92,23 @@ export const toPlaygroup = (row: PlaygroupRow): Playgroup => ({
 
 /** Joins a version and its card back into the Scryfall shape the app uses. Faces pair up by index. */
 export const toCard = ({ card, ...version }: CardVersionWithCardRow): ScryfallCard => {
-  const faces = card.card_faces?.map(
-    (face, i): ScryfallCardFace => ({
-      name: face.name,
-      mana_cost: face.mana_cost,
-      type_line: face.type_line,
-      oracle_text: face.rules_text,
-      colors: face.colors,
-      power: face.power,
-      toughness: face.toughness,
-      loyalty: face.loyalty,
-      artist: version.card_faces?.[i]?.artist,
-      image_uris: version.card_faces?.[i]?.image_uris,
-    }),
-  );
+  const versionFaces = version.card_faces ? fromJson<CardVersionFaceRow[]>(version.card_faces) : undefined;
+  const faces = card.card_faces
+    ? fromJson<CardFaceRow[]>(card.card_faces).map(
+        (face, i): ScryfallCardFace => ({
+          name: face.name,
+          mana_cost: face.mana_cost,
+          type_line: face.type_line,
+          oracle_text: face.rules_text,
+          colors: face.colors,
+          power: face.power,
+          toughness: face.toughness,
+          loyalty: face.loyalty,
+          artist: versionFaces?.[i]?.artist,
+          image_uris: versionFaces?.[i]?.image_uris,
+        }),
+      )
+    : undefined;
   return {
     id: version.id,
     oracle_id: card.id,
@@ -205,8 +123,8 @@ export const toCard = ({ card, ...version }: CardVersionWithCardRow): ScryfallCa
     loyalty: card.loyalty ?? undefined,
     colors: card.colors ?? undefined,
     color_identity: card.color_identity,
-    legalities: card.legalities,
-    image_uris: version.image_uris ?? undefined,
+    legalities: fromJson<ScryfallCard['legalities']>(card.legalities),
+    image_uris: version.image_uris ? fromJson<ScryfallImageUris>(version.image_uris) : undefined,
     card_faces: faces,
     set: version.set,
     collector_number: version.collector_number,
@@ -217,9 +135,25 @@ export const toCard = ({ card, ...version }: CardVersionWithCardRow): ScryfallCa
 };
 
 /** Splits a Scryfall card into its `cards` row (rules) and its `card_versions` row (this printing). */
-export const fromCard = (scryfall: ScryfallCard, cardId: string): { card: CardRow; version: CardVersionRow } => {
+export const fromCard = (
+  scryfall: ScryfallCard,
+  cardId: string,
+): { card: TablesInsert<'cards'>; version: TablesInsert<'card_versions'> } => {
   const now = new Date().toISOString();
   const finishes = (scryfall.finishes ?? []).filter((f): f is CardFinish => FINISHES.includes(f as CardFinish));
+  const cardFaces: CardFaceRow[] | null =
+    scryfall.card_faces?.map((face) => ({
+      name: face.name,
+      mana_cost: face.mana_cost,
+      type_line: face.type_line,
+      rules_text: face.oracle_text,
+      colors: face.colors,
+      power: face.power,
+      toughness: face.toughness,
+      loyalty: face.loyalty,
+    })) ?? null;
+  const versionFaces: CardVersionFaceRow[] | null =
+    scryfall.card_faces?.map((face) => ({ image_uris: face.image_uris, artist: face.artist })) ?? null;
   return {
     card: {
       id: cardId,
@@ -235,17 +169,7 @@ export const fromCard = (scryfall: ScryfallCard, cardId: string): { card: CardRo
       colors: scryfall.colors ?? null,
       color_identity: scryfall.color_identity,
       legalities: scryfall.legalities,
-      card_faces:
-        scryfall.card_faces?.map((face) => ({
-          name: face.name,
-          mana_cost: face.mana_cost,
-          type_line: face.type_line,
-          rules_text: face.oracle_text,
-          colors: face.colors,
-          power: face.power,
-          toughness: face.toughness,
-          loyalty: face.loyalty,
-        })) ?? null,
+      card_faces: cardFaces,
       updated_at: now,
     },
     version: {
@@ -256,7 +180,7 @@ export const fromCard = (scryfall: ScryfallCard, cardId: string): { card: CardRo
       rarity: scryfall.rarity,
       artist: scryfall.artist ?? null,
       image_uris: scryfall.image_uris ?? null,
-      card_faces: scryfall.card_faces?.map((face) => ({ image_uris: face.image_uris, artist: face.artist })) ?? null,
+      card_faces: versionFaces,
       finishes: finishes.length > 0 ? finishes : ['nonfoil'],
       updated_at: now,
     },
@@ -276,7 +200,7 @@ export const toCollectionItem = (row: CollectionItemRow): CollectionItem => ({
 });
 
 /** `updated_at` is left out: the database stamps it. */
-export const fromCollectionItem = (item: CollectionItem): CollectionItemRow => ({
+export const fromCollectionItem = (item: CollectionItem): TablesInsert<'collection_items'> => ({
   id: item.id,
   user_id: item.userId,
   version_id: item.versionId,
@@ -294,7 +218,7 @@ export const toDeckCard = (row: DeckCardRow): DeckCard => ({
   isCommander: row.is_commander,
 });
 
-export const fromDeckCard = (deckId: string, card: DeckCard): DeckCardRow => ({
+export const fromDeckCard = (deckId: string, card: DeckCard): TablesInsert<'deck_cards'> => ({
   deck_id: deckId,
   card_id: card.cardId,
   quantity: card.quantity,
@@ -302,7 +226,7 @@ export const fromDeckCard = (deckId: string, card: DeckCard): DeckCardRow => ({
   is_commander: card.isCommander,
 });
 
-export const toDeck = (row: DeckRow): Deck => ({
+export const toDeck = (row: DeckWithCardsRow): Deck => ({
   id: row.id,
   ownerId: row.owner_id,
   name: row.name,
@@ -314,6 +238,9 @@ export const toDeck = (row: DeckRow): Deck => ({
   updatedAt: row.updated_at,
   cards: (row.deck_cards ?? []).map(toDeckCard),
 });
+
+// Loan and RSVP statuses are `check` constraints in the database, not enums, so the generated type is `string`.
+// The constraint guarantees one of the union's values; these casts narrow to it.
 
 export const toLoan = (row: LoanRequestRow): LoanRequest => ({
   id: row.id,
@@ -340,7 +267,7 @@ export const toRsvp = (row: RsvpRow): Rsvp => ({
   status: row.status as RsvpStatus,
 });
 
-export const fromRsvp = (rsvp: Rsvp): RsvpRow => ({
+export const fromRsvp = (rsvp: Rsvp): TablesInsert<'rsvps'> => ({
   game_night_id: rsvp.gameNightId,
   user_id: rsvp.userId,
   status: rsvp.status,

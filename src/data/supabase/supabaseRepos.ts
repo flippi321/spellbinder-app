@@ -1,4 +1,4 @@
-import type { PostgrestError } from '@supabase/supabase-js';
+import type { PostgrestSingleResponse } from '@supabase/supabase-js';
 
 import {
   autocomplete,
@@ -36,15 +36,6 @@ import {
   toPlaygroup,
   toProfile,
   toRsvp,
-  type CardVersionWithCardRow,
-  type CollectionItemRow,
-  type DeckRow,
-  type GameNightRow,
-  type GameRow,
-  type LoanRequestRow,
-  type PlaygroupRow,
-  type ProfileRow,
-  type RsvpRow,
 } from './mappers';
 
 /**
@@ -52,8 +43,11 @@ import {
  * the spellbinder-db repo (supabase/migrations): you edit only your own rows; playgroup peers can read.
  */
 
-/** Throws on PostgREST errors. Rows are untyped until generated types exist, so callers cast. */
-function check(result: { data: unknown; error: PostgrestError | null }): unknown {
+/**
+ * Throws on PostgREST errors; otherwise returns the data, typed from the generated schema (`src/types/database.ts`).
+ * `.maybeSingle()` queries keep their `| null`.
+ */
+function check<T>(result: PostgrestSingleResponse<T>): T {
   if (result.error) throw new Error(`Supabase: ${result.error.message}`);
   return result.data;
 }
@@ -72,7 +66,7 @@ function createSessionRepo(): SessionRepo {
       const { data } = await supabase.auth.getSession();
       if (!data.session) return null;
       const row = check(await supabase.from('profiles').select('*').eq('id', data.session.user.id).maybeSingle());
-      return row ? toProfile(row as ProfileRow) : null;
+      return row ? toProfile(row) : null;
     },
     async signIn(email, password) {
       const { error } = await getSupabase().auth.signInWithPassword({ email, password });
@@ -134,9 +128,7 @@ function createCardRepo(): CardRepo {
   ): Promise<Card[]> => {
     const found = new Map<string, Card>();
     for (const part of chunk(keys)) {
-      const rows = check(
-        await getSupabase().from('card_versions').select('*, card:cards(*)').in(column, part),
-      ) as CardVersionWithCardRow[];
+      const rows = check(await getSupabase().from('card_versions').select('*, card:cards(*)').in(column, part));
       for (const row of rows) found.set(row[column], toCard(row));
     }
     const missing = keys.filter((key) => !found.has(key));
@@ -188,14 +180,14 @@ function createCollectionRepo(ensure: EnsureCached): CollectionRepo {
   return {
     async list(userId) {
       const rows = check(await getSupabase().from('collection_items').select('*').eq('user_id', userId));
-      return (rows as CollectionItemRow[]).map(toCollectionItem);
+      return rows.map(toCollectionItem);
     },
     async upsert(item) {
       await ensure.versions([item.versionId]);
       const row = check(
         await getSupabase().from('collection_items').upsert(fromCollectionItem(item)).select().single(),
       );
-      return toCollectionItem(row as CollectionItemRow);
+      return toCollectionItem(row);
     },
     async remove(itemId) {
       check(await getSupabase().from('collection_items').delete().eq('id', itemId));
@@ -213,7 +205,7 @@ function createDeckRepo(ensure: EnsureCached): DeckRepo {
           .eq('owner_id', ownerId)
           .order('created_at', { ascending: true }),
       );
-      return (rows as DeckRow[]).map(toDeck);
+      return rows.map(toDeck);
     },
     async create(input) {
       const supabase = getSupabase();
@@ -230,7 +222,7 @@ function createDeckRepo(ensure: EnsureCached): DeckRepo {
           })
           .select()
           .single(),
-      ) as DeckRow;
+      );
       if (input.cards.length > 0) {
         check(await supabase.from('deck_cards').insert(input.cards.map((card) => fromDeckCard(row.id, card))));
       }
@@ -255,7 +247,7 @@ function createPlaygroupRepo(ensure: EnsureCached): PlaygroupRepo {
       const supabase = getSupabase();
       const membership = check(
         await supabase.from('playgroup_members').select('playgroup_id').eq('user_id', userId).limit(1).maybeSingle(),
-      ) as { playgroup_id: string } | null;
+      );
       if (!membership) return null;
       const playgroupId = membership.playgroup_id;
 
@@ -278,23 +270,23 @@ function createPlaygroupRepo(ensure: EnsureCached): PlaygroupRepo {
           .order('created_at', { ascending: false }),
       ]);
 
-      const members = (check(memberRows) as unknown as { profiles: ProfileRow }[]).map((m) => toProfile(m.profiles));
-      const nightRows = check(nights) as (GameNightRow & { rsvps: RsvpRow[] })[];
+      const members = check(memberRows).map((m) => toProfile(m.profiles));
+      const nightRows = check(nights);
       const next = nightRows[0] ?? null;
 
       const otherIds = members.map((m) => m.id).filter((id) => id !== userId);
       const memberItems =
         otherIds.length === 0
           ? []
-          : (check(await supabase.from('collection_items').select('*').in('user_id', otherIds)) as CollectionItemRow[]);
+          : check(await supabase.from('collection_items').select('*').in('user_id', otherIds));
 
       return {
-        playgroup: toPlaygroup(check(playgroup) as PlaygroupRow),
+        playgroup: toPlaygroup(check(playgroup)),
         members,
         nextGameNight: next ? toGameNight(next) : null,
         rsvps: next ? next.rsvps.map(toRsvp) : [],
-        games: (check(games) as GameRow[]).map(toGame),
-        loans: (check(loans) as LoanRequestRow[]).map(toLoan),
+        games: check(games).map(toGame),
+        loans: check(loans).map(toLoan),
         memberItems: memberItems.map(toCollectionItem),
       };
     },
@@ -318,7 +310,7 @@ function createPlaygroupRepo(ensure: EnsureCached): PlaygroupRepo {
           .select()
           .single(),
       );
-      return toLoan(row as LoanRequestRow);
+      return toLoan(row);
     },
     async logGame(game) {
       await ensure.cards([game.winnerCommanderCardId]);
@@ -337,7 +329,7 @@ function createPlaygroupRepo(ensure: EnsureCached): PlaygroupRepo {
           .select()
           .single(),
       );
-      return toGame(row as GameRow);
+      return toGame(row);
     },
   };
 }

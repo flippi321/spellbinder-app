@@ -119,15 +119,16 @@ These change what gets built. Each has a recommendation; record the decision her
 - [x] The RLS smoke tests above pass (`spellbinder-db/supabase/tests/rls.test.sql`; see SB-11).
 
 ### SB-3 · Generated database types — P0
-*Depends on:* SB-2
-1. Add `"db:types": "supabase gen types typescript --local > src/types/database.ts"` (or `--linked`).
+*Depends on:* SB-2 · *Status:* done. `src/types/database.ts` is generated from the linked project (don't edit it);
+regenerate with `npm run db:types` after every migration that reaches the remote, check with `npm run db:types:check`.
+1. Add `db:types` (`scripts/db-types.ts`, runs `../spellbinder-db`'s `types` script, `--linked`) and `db:types:check`.
 2. Create the client as `createClient<Database>(…)` in `src/services/supabase.ts`.
 3. Replace the hand-written `*Row` interfaces in `mappers.ts` with `Tables<'cards'>` etc. and remove the `TODO` there.
 4. Remove the `as XRow[]` casts in `supabaseRepos.ts` that typed queries make unnecessary.
-5. Add a CI check that regenerated types match the committed file (X-3).
+5. `npm run db:types:check` fails when the committed file is behind the schema; running it in CI is X-3 step 3.
 
 **Done when**
-- [ ] `npm run typecheck` passes with generated types; no hand-written row types left.
+- [x] `npm run typecheck` passes with generated types; no hand-written row types left.
 
 ### SB-4 · Migration `0006_cards_sync.sql`: extend and lock down the card cache — P0
 *Skill:* `supabase-migration` · *Depends on:* SB-2, D-1, D-2, D-4
@@ -149,7 +150,8 @@ Scryfall id, already has `finishes card_finish[]`). Prices live in `card_prices`
    - `find_card(name text)`: exact, then case-insensitive, then best trigram match above a similarity threshold, for
      scanner and typed names.
    - `card_versions_of(card uuid)`: a card's versions, newest first.
-6. Update `CardRow` / `CardVersionRow`, the mappers and `slimCard` with the new fields (`set_name` is already in the TS
+6. After pushing the migration, run `npm run db:types` in the app (the row types follow), then update the mappers
+   and `slimCard` with the new fields (`set_name` is already in the TS
    type, but not in the tables).
 
 **Done when**
@@ -305,6 +307,7 @@ when they're older than 24 h. This cuts Scryfall API traffic to almost nothing (
    `pg_net` with the service key from Vault. It must process the stream in chunks across several invocations to stay
    under the function limits.)*
 5. After the first successful run, apply the SB-4 RLS lockdown and stop client-side `cards` upserts.
+6. Once its migration is on the remote, run `npm run db:types` in the app and commit `src/types/database.ts`.
 
 **Done when**
 - [ ] The job has run on schedule two days in a row; About shows the last sync time (CC-6 step 5).
@@ -704,6 +707,8 @@ Supabase mode.
 ### X-3 · CI — P1
 1. `.github/workflows/ci.yml` on push/PR: `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`.
 2. Later: `npx supabase db reset` + `npx supabase test db` in CI using the Supabase CLI's local stack.
+3. `npm run db:types:check` (SB-3): fails when `src/types/database.ts` is behind the schema. Needs `../spellbinder-db`
+   checked out next to the app and a Supabase access token (`SUPABASE_ACCESS_TOKEN`) for the linked project.
 
 ### X-4 · Builds and distribution to friends — P1
 1. `eas.json` with `development`, `preview` (internal distribution) and `production` profiles.

@@ -29,6 +29,8 @@ The app must keep running in **Expo Go** until we deliberately move to a dev bui
 - Typecheck: `npx tsc --noEmit`
 - Lint: `npx expo lint`
 - Test: `npm test`
+- Database types: `npm run db:types` after a migration reaches the remote (writes `src/types/database.ts`, never edit
+  it by hand); `npm run db:types:check` tells you if it's stale. Needs `../spellbinder-db` linked and logged in.
 
 Run typecheck, lint and tests before saying a task is done.
 

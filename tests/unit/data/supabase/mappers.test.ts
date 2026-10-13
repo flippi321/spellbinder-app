@@ -13,9 +13,15 @@ import {
   toPlaygroup,
   toProfile,
   toRsvp,
+  fromJson,
+  type CardFaceRow,
+  type CardRow,
+  type CardVersionRow,
   type CardVersionWithCardRow,
   type CollectionItemRow,
-  type DeckRow,
+  type DeckCardRow,
+  type DeckWithCardsRow,
+  type GameNightRow,
   type GameRow,
   type LoanRequestRow,
 } from '@/data/supabase/mappers';
@@ -29,6 +35,8 @@ const FINISHES = Object.keys({ nonfoil: true, foil: true, etched: true } satisfi
 const LOAN_STATUSES = Object.keys({
   pending: true, lent: true, declined: true, returned: true,
 } satisfies Record<LoanStatus, true>) as LoanStatus[];
+
+const STAMP = '2026-10-01T00:00:00.000Z';
 
 const solRing: ScryfallCard = {
   id: 'v-sol',
@@ -88,10 +96,13 @@ const delver: ScryfallCard = {
   finishes: ['nonfoil'],
 };
 
-/** What a `card_versions` select with `card:cards(*)` returns for a card written by `fromCard`. */
+/**
+ * What a `card_versions` select with `card:cards(*)` returns for a card written by `fromCard`. `fromCard` fills every
+ * column, so its insert rows are complete rows.
+ */
 const asRow = (scryfall: ScryfallCard): CardVersionWithCardRow => {
   const { card, version } = fromCard(scryfall, scryfall.oracle_id!);
-  return { ...version, card };
+  return { ...(version as CardVersionRow), card: card as CardRow };
 };
 
 describe('fromCard', () => {
@@ -124,7 +135,7 @@ describe('fromCard', () => {
       expect.objectContaining({ name: 'Delver of Secrets', mana_cost: '{U}', rules_text: expect.stringContaining('upkeep') }),
       expect.objectContaining({ name: 'Insectile Aberration', rules_text: 'Flying', power: '3' }),
     ]);
-    expect(card.card_faces?.[0]).not.toHaveProperty('image_uris');
+    expect(fromJson<CardFaceRow[]>(card.card_faces!)[0]).not.toHaveProperty('image_uris');
     expect(version.card_faces).toEqual([
       { artist: 'Matt Stewart', image_uris: { normal: 'https://img/delver-front.jpg' } },
       { artist: 'Matt Stewart', image_uris: { normal: 'https://img/delver-back.jpg' } },
@@ -222,7 +233,7 @@ describe('collection items', () => {
 });
 
 describe('decks', () => {
-  const deckRow: DeckRow = {
+  const deckRow: DeckWithCardsRow = {
     id: 'd1',
     owner_id: 'me',
     name: 'Atraxa',
@@ -230,7 +241,8 @@ describe('decks', () => {
     partner_card_id: null,
     theme: null,
     bracket: 3,
-    created_at: '2026-10-01T00:00:00.000Z',
+    created_at: STAMP,
+    updated_at: STAMP,
     deck_cards: [{ deck_id: 'd1', card_id: 'c-sol', quantity: 1, category: 'Ramp', is_commander: false }],
   };
 
@@ -239,7 +251,7 @@ describe('decks', () => {
       commanderCardId: 'c-atraxa',
       partnerCardId: null,
       theme: '',
-      updatedAt: undefined,
+      updatedAt: STAMP,
       cards: [{ cardId: 'c-sol', quantity: 1, category: 'Ramp', isCommander: false }],
     });
   });
@@ -267,7 +279,8 @@ describe('decks', () => {
   it('round-trips a deck card by card id', () => {
     const card = { cardId: 'c-sol', quantity: 1, category: 'Ramp', isCommander: true };
     expect(fromDeckCard('d1', card)).toEqual({ deck_id: 'd1', card_id: 'c-sol', quantity: 1, category: 'Ramp', is_commander: true });
-    expect(toDeckCard(fromDeckCard('d1', card))).toEqual(card);
+    const row: DeckCardRow = { deck_id: 'd1', card_id: 'c-sol', quantity: 1, category: 'Ramp', is_commander: true };
+    expect(toDeckCard(row)).toEqual(card);
   });
 });
 
@@ -279,11 +292,12 @@ describe('loans', () => {
     owner_id: 'erik',
     status: 'pending',
     note: null,
-    created_at: '2026-10-01T00:00:00.000Z',
+    created_at: STAMP,
+    updated_at: STAMP,
   };
 
   it.each(LOAN_STATUSES)('maps a %s loan by card id', (status) => {
-    expect(toLoan({ ...loanRow, status })).toMatchObject({ cardId: 'c-rift', status, updatedAt: undefined });
+    expect(toLoan({ ...loanRow, status })).toMatchObject({ cardId: 'c-rift', status, updatedAt: STAMP });
   });
 });
 
@@ -297,6 +311,9 @@ describe('games', () => {
     game_night_id: null,
     player_count: 4,
     duration_minutes: null,
+    created_by: 'mira',
+    created_at: STAMP,
+    updated_at: STAMP,
   };
 
   it('maps a game outside any game night', () => {
@@ -313,13 +330,14 @@ describe('games', () => {
 
 describe('profiles, playgroups, game nights and RSVPs', () => {
   it('maps a profile and falls back to gold for an unknown avatar color', () => {
-    const row = { id: 'me', display_name: 'You', initials: 'YO', avatar_color: 'blue' };
+    const row = { id: 'me', display_name: 'You', initials: 'YO', avatar_color: 'blue', created_at: STAMP, updated_at: STAMP };
     expect(toProfile(row)).toEqual({ id: 'me', displayName: 'You', initials: 'YO', avatarColor: 'blue' });
     expect(toProfile({ ...row, avatar_color: 'plaid' }).avatarColor).toBe('gold');
   });
 
   it('maps a playgroup', () => {
-    expect(toPlaygroup({ id: 'pg', name: 'The Thursday Table', invite_code: 'THURS7Q2', created_by: 'jonas' })).toEqual({
+    const row = { id: 'pg', name: 'The Thursday Table', invite_code: 'THURS7Q2', created_by: 'jonas', created_at: STAMP, updated_at: STAMP };
+    expect(toPlaygroup(row)).toEqual({
       id: 'pg',
       name: 'The Thursday Table',
       inviteCode: 'THURS7Q2',
@@ -328,13 +346,30 @@ describe('profiles, playgroups, game nights and RSVPs', () => {
   });
 
   it('maps a game night with and without a location', () => {
-    const row = { id: 'gn1', playgroup_id: 'pg', starts_at: '2026-10-15T17:00:00.000Z', location: null, notes: null };
+    const row: GameNightRow = {
+      id: 'gn1',
+      playgroup_id: 'pg',
+      starts_at: '2026-10-15T17:00:00.000Z',
+      location: null,
+      notes: null,
+      created_by: 'jonas',
+      created_at: STAMP,
+      updated_at: STAMP,
+    };
     expect(toGameNight(row)).toEqual({ id: 'gn1', playgroupId: 'pg', startsAt: row.starts_at, location: '', notes: null });
     expect(toGameNight({ ...row, location: "Jonas's" }).location).toBe("Jonas's");
   });
 
-  it.each(['going', 'maybe', 'no'] as const)('round-trips a %s RSVP', (status) => {
+  it.each(['going', 'maybe', 'no'] as const)('maps a %s RSVP both ways', (status) => {
     const rsvp = { gameNightId: 'gn1', userId: 'me', status };
-    expect(toRsvp(fromRsvp(rsvp))).toEqual(rsvp);
+    expect(fromRsvp(rsvp)).toEqual({ game_night_id: 'gn1', user_id: 'me', status });
+    expect(toRsvp({ game_night_id: 'gn1', user_id: 'me', status, updated_at: STAMP })).toEqual(rsvp);
+  });
+});
+
+describe('fromJson', () => {
+  it('reads a jsonb value as the shape the write mappers stored', () => {
+    const faces = fromJson<CardFaceRow[]>([{ name: 'Delver of Secrets', rules_text: 'Flying' }]);
+    expect(faces[0].rules_text).toBe('Flying');
   });
 });

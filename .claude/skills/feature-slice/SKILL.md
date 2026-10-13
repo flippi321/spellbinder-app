@@ -39,7 +39,9 @@ and routes. Reuse what already exists — check `src/utils/`, `src/stores/select
 - Mock mode must work offline with zero backend. Need new seed data? Use the `seed-data` skill.
 
 ## 4. Supabase implementation — `src/data/supabase/`
-- Add `*Row` types and `toX` / `fromX` mappers in `mappers.ts` (snake_case ↔ camelCase, `null` ↔ `undefined`).
+- Row types in `mappers.ts` are aliases of the generated types (`type FooRow = Tables<'foo'>`; run `npm run db:types`
+  after the migration is pushed); never hand-write a row. Add `toX` / `fromX` mappers (snake_case ↔ camelCase, `null` ↔
+  `undefined`); write mappers return `TablesInsert<'foo'>`, and jsonb payloads are `type` aliases read with `fromJson`.
 - Query through `getSupabase()` in `supabaseRepos.ts`; wrap every result in `check(...)`; `chunk()` long `in (...)` lists.
 - Rely on RLS for authorization — don't filter "for security" in the client, filter for intent.
 - If the table or column doesn't exist yet, add it first in `../spellbinder-db` (its `supabase-migration` skill), then regenerate types.

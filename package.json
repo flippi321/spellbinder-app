@@ -11,7 +11,9 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "seed:cards": "tsx scripts/build-seed-cards.ts"
+    "seed:cards": "tsx scripts/build-seed-cards.ts",
+    "db:types": "tsx scripts/db-types.ts",
+    "db:types:check": "tsx scripts/db-types.ts --check"
   },
   "dependencies": {
     "@expo-google-fonts/cinzel": "^0.4.2",

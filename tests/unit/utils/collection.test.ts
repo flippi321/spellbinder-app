@@ -1,4 +1,5 @@
 import type { Card, CardCondition, CardFinish } from '@/types';
+import { Constants } from '@/types/database';
 import {
   CARD_CONDITIONS,
   CONDITION_LABELS,
@@ -123,5 +124,16 @@ describe('migrateCollectionItem (data saved before persist version 2)', () => {
   it('keeps fields that already have their new names', () => {
     const item = migrateCollectionItem({ ...old, versionId: 'v2', cardId: 'c2', finish: 'etched', condition: 'GD' });
     expect(item).toMatchObject({ versionId: 'v2', cardId: 'c2', finish: 'etched', condition: 'GD' });
+  });
+});
+
+describe('matches the database enums', () => {
+  it('lists the same conditions as card_condition, in the same order', () => {
+    expect([...CARD_CONDITIONS]).toEqual(Constants.public.Enums.card_condition);
+  });
+
+  it('has a domain finish for every card_finish', () => {
+    const finishes = Object.keys({ nonfoil: true, foil: true, etched: true } satisfies Record<CardFinish, true>);
+    expect(finishes).toEqual(Constants.public.Enums.card_finish);
   });
 });

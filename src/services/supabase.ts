@@ -5,8 +5,12 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 
 import { config } from '@/config';
+import type { Database } from '@/types/database';
 
-let client: SupabaseClient | null = null;
+/** Typed by the generated schema (`npm run db:types`), so queries and rows are checked against the database. */
+export type TypedSupabaseClient = SupabaseClient<Database>;
+
+let client: TypedSupabaseClient | null = null;
 
 export function isSupabaseConfigured(): boolean {
   return Boolean(config.supabaseUrl && config.supabaseAnonKey);
@@ -17,7 +21,7 @@ export function isSupabaseConfigured(): boolean {
  * Only the public URL + anon key live in the app; RLS protects the data, and secrets
  * (like the Anthropic key) live in Supabase function secrets.
  */
-export function getSupabase(): SupabaseClient {
+export function getSupabase(): TypedSupabaseClient {
   if (client) return client;
   if (!isSupabaseConfigured()) {
     throw new Error(
@@ -25,7 +29,7 @@ export function getSupabase(): SupabaseClient {
     );
   }
 
-  const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
+  const supabase = createClient<Database>(config.supabaseUrl, config.supabaseAnonKey, {
     auth: {
       storage: AsyncStorage,
       autoRefreshToken: true,
