@@ -74,14 +74,36 @@ function createSessionRepo(): SessionRepo {
       const row = check(await supabase.from('profiles').select('*').eq('id', data.session.user.id).maybeSingle());
       return row ? toProfile(row as ProfileRow) : null;
     },
-    async signInWithOtp(email) {
-      const { error } = await getSupabase().auth.signInWithOtp({ email });
-      if (error) throw error;
-    },
-    async verifyOtp(email, code) {
-      const { error } = await getSupabase().auth.verifyOtp({ email, token: code, type: 'email' });
+    async signIn(email, password) {
+      const { error } = await getSupabase().auth.signInWithPassword({ email, password });
       if (error) throw error;
       return repo.currentUser();
+    },
+    async signUp(email, password, displayName) {
+      // `handle_new_user` reads display_name from the user metadata to create the profile.
+      const { error } = await getSupabase().auth.signUp({
+        email,
+        password,
+        options: { data: { display_name: displayName } },
+      });
+      if (error) throw error;
+      return repo.currentUser();
+    },
+    async requestPasswordReset(email) {
+      const { error } = await getSupabase().auth.resetPasswordForEmail(email);
+      if (error) throw error;
+    },
+    async resetPassword(email, code, newPassword) {
+      const supabase = getSupabase();
+      const verified = await supabase.auth.verifyOtp({ email, token: code, type: 'recovery' });
+      if (verified.error) throw verified.error;
+      const updated = await supabase.auth.updateUser({ password: newPassword });
+      if (updated.error) throw updated.error;
+      return repo.currentUser();
+    },
+    onAuthChange(listener) {
+      const { data } = getSupabase().auth.onAuthStateChange((_event, session) => listener(session?.user.id ?? null));
+      return () => data.subscription.unsubscribe();
     },
     async signOut() {
       await getSupabase().auth.signOut();

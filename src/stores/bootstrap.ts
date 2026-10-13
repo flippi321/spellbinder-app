@@ -24,9 +24,14 @@ export function useStoresHydrated(): boolean {
   return useSyncExternalStore(subscribeToHydration, allHydrated, allHydrated);
 }
 
-/** Session first, then everything the tabs need, in parallel. */
+/** Session first, then the signed-in user's data. */
 export async function bootstrapApp(): Promise<void> {
   await useSessionStore.getState().init();
+  await loadUserData();
+}
+
+/** Everything the tabs need for the signed-in user, in parallel (also run right after signing in). */
+export async function loadUserData(): Promise<void> {
   const userId = useSessionStore.getState().user?.id;
   if (!userId) return;
   await Promise.all([

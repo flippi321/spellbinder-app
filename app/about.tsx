@@ -19,7 +19,9 @@ const SCRYFALL = 'https://scryfall.com';
 
 export default function AboutScreen() {
   const user = useSessionStore((s) => s.user);
+  const signOut = useSessionStore((s) => s.signOut);
   const [resetting, setResetting] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const version = Constants.expoConfig?.version ?? '0.0.0';
 
   const reset = async () => {
@@ -81,7 +83,20 @@ export default function AboutScreen() {
             onPress={confirmReset}
             style={styles.button}
           />
-        ) : null}
+        ) : (
+          // Signing out flips the root layout's auth gate, which shows the sign-in screen.
+          <Button
+            label="Sign out"
+            variant="secondary"
+            size="sm"
+            loading={signingOut}
+            onPress={() => {
+              setSigningOut(true);
+              void signOut();
+            }}
+            style={styles.button}
+          />
+        )}
       </Card>
 
       <Card style={styles.card}>

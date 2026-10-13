@@ -45,9 +45,13 @@ const isNotFound = (error: unknown) => error instanceof ScryfallError && error.s
 function createMockSessionRepo(): SessionRepo {
   const me = PROFILES.find((profile) => profile.id === ME) ?? null;
   return {
+    // Mock mode is always signed in as the demo profile; the sign-in screen never shows.
     currentUser: async () => me,
-    signInWithOtp: async () => undefined,
-    verifyOtp: async () => me,
+    signIn: async () => me,
+    signUp: async () => me,
+    requestPasswordReset: async () => undefined,
+    resetPassword: async () => me,
+    onAuthChange: () => () => undefined,
     signOut: async () => undefined,
   };
 }

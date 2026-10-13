@@ -21,7 +21,12 @@ export type IconName =
   | 'chevron'
   | 'import'
   | 'share'
-  | 'send';
+  | 'send'
+  | 'mail'
+  | 'lock'
+  | 'user'
+  | 'eye'
+  | 'eyeOff';
 
 export interface IconProps {
   name: IconName;
@@ -113,6 +118,41 @@ function glyph(name: IconName, fill: string): ReactNode {
       return <Path d="M12 14.5V3.5M7.5 8 12 3.5 16.5 8M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />;
     case 'send':
       return <Path d="M12 19V5.5M5.5 12 12 5.5l6.5 6.5" />;
+    case 'mail':
+      return (
+        <>
+          <Rect x={3} y={5} width={18} height={14} rx={2} />
+          <Path d="m3.5 6.5 8.5 6.5 8.5-6.5" />
+        </>
+      );
+    case 'lock':
+      return (
+        <>
+          <Rect x={4.5} y={10.5} width={15} height={10} rx={2} />
+          <Path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+        </>
+      );
+    case 'user':
+      return (
+        <>
+          <Circle cx={12} cy={8} r={4} />
+          <Path d="M4.5 20.5a7.5 7.5 0 0 1 15 0" />
+        </>
+      );
+    case 'eye':
+      return (
+        <>
+          <Path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+          <Circle cx={12} cy={12} r={3} />
+        </>
+      );
+    case 'eyeOff':
+      return (
+        <>
+          <Path d="M9.9 5.8A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.6 3.4M6.6 6.9C4 8.6 2.5 12 2.5 12S6 18.5 12 18.5a9.3 9.3 0 0 0 4.9-1.4" />
+          <Path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3.5 3.5l17 17" />
+        </>
+      );
   }
 }
 

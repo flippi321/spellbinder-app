@@ -191,7 +191,7 @@ collections, decks or `cards` are seeded yet.
 **Done when**
 - [ ] Fresh install in Supabase mode → create account → Home with your (empty) data.
 - [ ] Sign out returns to sign-in and no previous user's data is visible (see X-1).
-- [ ] Store tests cover sign-in success, wrong password and sign-out.
+- [x] Store tests cover sign-in success, wrong password and sign-out.
 
 ### SB-7 · Onboarding: create or join a playgroup — P0
 *Skills:* `feature-slice`, `ui-component` · *Depends on:* SB-6

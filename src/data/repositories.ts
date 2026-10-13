@@ -22,8 +22,16 @@ import type {
 export interface SessionRepo {
   /** The signed-in user's profile, or null when signed out. */
   currentUser(): Promise<Profile | null>;
-  signInWithOtp(email: string): Promise<void>;
-  verifyOtp(email: string, code: string): Promise<Profile | null>;
+  /** Email + password. Throws on wrong credentials. */
+  signIn(email: string, password: string): Promise<Profile | null>;
+  /** New account, signed in straight away (no confirmation email). The DB trigger creates the profile. */
+  signUp(email: string, password: string, displayName: string): Promise<Profile | null>;
+  /** Email a 6-digit password-reset code. */
+  requestPasswordReset(email: string): Promise<void>;
+  /** Check the emailed code, set the new password and sign in. */
+  resetPassword(email: string, code: string, newPassword: string): Promise<Profile | null>;
+  /** Called with the user id whenever the auth session changes (null = signed out). Returns unsubscribe. */
+  onAuthChange(listener: (userId: string | null) => void): () => void;
   signOut(): Promise<void>;
 }
 
