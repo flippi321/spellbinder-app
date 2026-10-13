@@ -36,7 +36,7 @@ Look at what changed: `git status` and `git diff` (plus `git diff --cached`). Au
 | 9 | Architecture | Repo interface changes implemented in **both** `mockRepos.ts` and `supabaseRepos.ts`; no derived state stored in a Zustand store; routes in `app/` stay thin |
 | 10 | Expo Go | New deps added with `npx expo install` (versions match the SDK in `package.json`); no package that needs custom native code or a config plugin Expo Go lacks |
 | 11 | Mock mode | App still works with `EXPO_PUBLIC_DATA_MODE` unset (the default) and no network beyond Scryfall |
-| 12 | Schema | Any SQL change is a new file in `supabase/migrations/` with RLS (see the `supabase-migration` skill) |
+| 12 | Schema | No SQL in this repo: schema changes are migrations in `../spellbinder-db` |
 | 13 | No emoji | No emoji in UI strings or Oracle copy |
 | 14 | Fan Content Policy | The About screen still shows the WotC Fan Content Policy disclaimer and Scryfall attribution |
 
