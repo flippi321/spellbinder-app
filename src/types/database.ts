@@ -133,6 +133,42 @@ export type Database = {
           },
         ]
       }
+      card_sync_runs: {
+        Row: {
+          bulk_type: string
+          bulk_updated_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          rows_read: number
+          rows_upserted: number
+          started_at: string
+          status: string
+        }
+        Insert: {
+          bulk_type: string
+          bulk_updated_at: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_read?: number
+          rows_upserted?: number
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          bulk_type?: string
+          bulk_updated_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_read?: number
+          rows_upserted?: number
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
       card_versions: {
         Row: {
           artist: string | null
@@ -770,6 +806,10 @@ export type Database = {
         }
       }
       snapshot_card_prices: { Args: never; Returns: number }
+      sync_card_batch: {
+        Args: { card_rows: Json; price_rows: Json; version_rows: Json }
+        Returns: number
+      }
     }
     Enums: {
       card_condition: "M" | "NM" | "EX" | "GD" | "LP" | "PL" | "PO"
