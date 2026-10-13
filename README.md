@@ -81,6 +81,7 @@ Copy `.env.example` to `.env` (gitignored). Only `EXPO_PUBLIC_*` values reach th
 | `EXPO_PUBLIC_DATA_MODE` | `mock` · `supabase` | `mock` |
 | `EXPO_PUBLIC_ORACLE_MODE` | `mock` (canned answers) · `edge` (Edge Function) | `mock` |
 | `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` | your project's values | — |
+| `EXPO_PUBLIC_TEST_USER_EMAIL`, `EXPO_PUBLIC_TEST_USER_PASSWORD` | a test account (dev builds, Supabase mode) | empty |
 
 **Mock mode.** The seed in `src/data/mock/seed/` lists cards **by name** (four 100-card decks, your binder, friends'
 collections, game night, games, loans). `cards.json` holds the real Scryfall ids for those names, so seed decks
@@ -98,6 +99,10 @@ the seed, run `npm run seed:cards`. A seed-integrity test keeps the numbers from
    use `http://<your LAN IP>:54321` and the local key from `npx supabase status`.
 3. Signed out, the app shows the sign-in screen: email + password, "Create account" and "Forgot password?".
    Accounts made there are real accounts on the live project.
+   To skip it while developing, fill both `EXPO_PUBLIC_TEST_USER_*` values: at launch, with no stored session, the
+   app signs in as that account, and creates it (display name = the part of the email before `@`) the first time.
+   If that fails, the sign-in screen shows with the reason. Signing out still shows the screen until the next
+   launch. Leave either value empty to sign in by hand. Release builds ignore them (`__DEV__` is false there).
 4. Oracle: deploy the `oracle` function from `spellbinder-db`, then set `EXPO_PUBLIC_ORACLE_MODE=edge`.
 
 ## Scryfall etiquette

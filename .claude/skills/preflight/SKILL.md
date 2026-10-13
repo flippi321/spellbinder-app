@@ -25,7 +25,7 @@ Look at what changed: `git status` and `git diff` (plus `git diff --cached`). Au
 ## 3. Hard-rule audit
 | # | Rule (CLAUDE.md) | How to check |
 |---|---|---|
-| 1 | **No secrets in the app.** Only `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_DATA_MODE`, `EXPO_PUBLIC_ORACLE_MODE` in client code | Grep the diff for `sk-ant`, `ANTHROPIC`, `service_role`, `SUPABASE_SERVICE`, `Bearer `, long base64/JWT-looking literals; `process.env.EXPO_PUBLIC_` read outside `src/config.ts` (`NODE_ENV` checks are fine); any new `.env*` file other than `.env.example` |
+| 1 | **No secrets in the app.** Only `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_DATA_MODE`, `EXPO_PUBLIC_ORACLE_MODE` in client code, plus the dev-only `EXPO_PUBLIC_TEST_USER_EMAIL` / `_PASSWORD`, which must stay behind `__DEV__` in `src/config.ts` so release bundles drop them | Grep the diff for `sk-ant`, `ANTHROPIC`, `service_role`, `SUPABASE_SERVICE`, `Bearer `, long base64/JWT-looking literals; `process.env.EXPO_PUBLIC_` read outside `src/config.ts` (`NODE_ENV` checks are fine); any new `.env*` file other than `.env.example` |
 | 2 | Screens never call services or `fetch` | Imports from `@/services/` in `app/**` or `src/components/**` (types and pure helpers like `getImageUri` are fine) |
 | 3 | Stores → repositories → services | Stores import `getRepos()`, not Supabase or Scryfall clients directly (pure helpers from `@/utils` are fine) |
 | 4 | Scryfall only through the shared client | `api.scryfall.com` anywhere except `src/services/scryfallClient.ts`; a new `createScryfallClient(` in app code |

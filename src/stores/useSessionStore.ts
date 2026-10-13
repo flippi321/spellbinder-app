@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 
+import { config, type TestUser } from '@/config';
 import { getRepos } from '@/data';
 import type { Profile } from '@/types';
-import { authErrorMessage } from '@/utils/auth';
+import { DISPLAY_NAME_MAX_LENGTH, authErrorCode, authErrorMessage } from '@/utils/auth';
 import { messageOf } from '@/utils/errors';
 
 export type SessionStatus = 'idle' | 'loading' | 'signedIn' | 'signedOut' | 'error';
@@ -27,6 +28,27 @@ interface SessionState {
 }
 
 let unsubscribeAuth: (() => void) | null = null;
+
+/** Names `.env`: the developer expected to skip the sign-in screen this message shows on. */
+const testUserError = (error: unknown) => new Error(`The test user in .env couldn’t sign in. ${authErrorMessage(error)}`);
+
+/** Development shortcut: sign in as the `.env` test user, creating the account the first time. */
+async function signInTestUser({ email, password }: TestUser): Promise<Profile | null> {
+  const session = getRepos().session;
+  try {
+    return await session.signIn(email, password);
+  } catch (signInError) {
+    // Supabase answers an unknown email and a wrong password alike, so try creating the account.
+    if (authErrorCode(signInError) !== 'invalid_credentials') throw testUserError(signInError);
+    try {
+      return await session.signUp(email, password, email.split('@')[0].slice(0, DISPLAY_NAME_MAX_LENGTH));
+    } catch (signUpError) {
+      // The account exists after all, so the password in .env is wrong.
+      const exists = ['user_already_exists', 'email_exists'].includes(authErrorCode(signUpError) ?? '');
+      throw testUserError(exists ? signInError : signUpError);
+    }
+  }
+}
 
 export const useSessionStore = create<SessionState>()((set, get) => {
   /** Run an auth request with the shared pending/error state. A returned profile signs the user in. */
@@ -62,6 +84,10 @@ export const useSessionStore = create<SessionState>()((set, get) => {
       });
       try {
         const user = await session.currentUser();
+        // No stored session: sign in as the `.env` test user if there is one. Only at launch, so signing out
+        // still reaches the sign-in screen. If it fails, that screen shows with the reason.
+        const testUser = config.testUser;
+        if (!user && testUser && (await attempt(() => signInTestUser(testUser)))) return;
         set({ user, status: user ? 'signedIn' : 'signedOut' });
       } catch (error) {
         set({ status: 'error', error: messageOf(error) });

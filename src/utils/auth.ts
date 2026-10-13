@@ -47,6 +47,13 @@ const AUTH_MESSAGES: Record<string, string> = {
 
 const OFFLINE_MESSAGE = 'Couldn’t reach Spellbinder. Check your connection and try again.';
 
+/** The Supabase Auth error code (`invalid_credentials`, …), or null when the error has none. */
+export function authErrorCode(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const { code } = error as { code?: unknown };
+  return typeof code === 'string' ? code : null;
+}
+
 /** A readable message for a failed sign-in, sign-up or password reset. */
 export function authErrorMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null) {

@@ -1,4 +1,5 @@
 import {
+  authErrorCode,
   authErrorMessage,
   displayNameError,
   emailError,
@@ -54,6 +55,16 @@ describe('resetCodeError', () => {
 
   it.each(['', '12345', '1234567', '12a456'])('rejects %p', (code) => {
     expect(resetCodeError(code)).toBe('Enter the 6-digit code from the email.');
+  });
+});
+
+describe('authErrorCode', () => {
+  it('reads the Supabase Auth error code', () => {
+    expect(authErrorCode(Object.assign(new Error('raw'), { code: 'invalid_credentials' }))).toBe('invalid_credentials');
+  });
+
+  it.each([new Error('no code'), { code: 42 }, 'invalid_credentials', null, undefined])('is null for %p', (error) => {
+    expect(authErrorCode(error)).toBeNull();
   });
 });
 

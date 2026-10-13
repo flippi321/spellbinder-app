@@ -1,6 +1,15 @@
+import type { TestUser } from '@/config';
 import { setRepos, type Repos, type SessionRepo } from '@/data';
 import { isSignedInAs, selectUserId, useSessionStore } from '@/stores/useSessionStore';
 import type { Profile } from '@/types';
+
+const mockConfig: { testUser: TestUser | null } = { testUser: null };
+// Lazy: jest.mock is hoisted above mockConfig's declaration.
+jest.mock('@/config', () => ({
+  get config() {
+    return mockConfig;
+  },
+}));
 
 const me: Profile = { id: 'me', displayName: 'You', initials: 'YO', avatarColor: 'gold' };
 
@@ -25,6 +34,7 @@ const session = {
 beforeEach(() => {
   jest.clearAllMocks();
   authListener = null;
+  mockConfig.testUser = null;
   setRepos({ session } as unknown as Repos);
   useSessionStore.setState({ status: 'idle', user: null, error: null, pending: false, authError: null });
 });
@@ -41,6 +51,7 @@ describe('init', () => {
     session.currentUser.mockResolvedValueOnce(null);
     await useSessionStore.getState().init();
     expect(useSessionStore.getState()).toMatchObject({ status: 'signedOut', user: null });
+    expect(session.signIn).not.toHaveBeenCalled();
   });
 
   it('reports a failure to load the session', async () => {
@@ -71,6 +82,115 @@ describe('init', () => {
     await useSessionStore.getState().init();
     expect(session.onAuthChange).toHaveBeenCalledTimes(2);
     expect(unsubscribe).toHaveBeenCalled();
+  });
+});
+
+describe('init with a test user in .env', () => {
+  const tester: Profile = { id: 'tester', displayName: 'tester', initials: 'TE', avatarColor: 'gold' };
+
+  beforeEach(() => {
+    mockConfig.testUser = { email: 'tester@spellbinder.test', password: 'password1' };
+  });
+
+  it('keeps a stored session', async () => {
+    session.currentUser.mockResolvedValueOnce(me);
+    await useSessionStore.getState().init();
+    expect(useSessionStore.getState()).toMatchObject({ status: 'signedIn', user: me });
+    expect(session.signIn).not.toHaveBeenCalled();
+  });
+
+  it('signs in as the test user without a stored session', async () => {
+    session.currentUser.mockResolvedValueOnce(null);
+    session.signIn.mockResolvedValueOnce(tester);
+    await useSessionStore.getState().init();
+    expect(session.signIn).toHaveBeenCalledWith('tester@spellbinder.test', 'password1');
+    expect(session.signUp).not.toHaveBeenCalled();
+    expect(useSessionStore.getState()).toMatchObject({ status: 'signedIn', user: tester, pending: false, authError: null });
+  });
+
+  it('stays loading while it signs in, so the sign-in screen never flashes', async () => {
+    session.currentUser.mockResolvedValueOnce(null);
+    let finish: (user: Profile) => void = () => undefined;
+    session.signIn.mockReturnValueOnce(new Promise((resolve) => (finish = resolve)));
+    const done = useSessionStore.getState().init();
+    await Promise.resolve();
+    expect(useSessionStore.getState().status).toBe('loading');
+    finish(tester);
+    await done;
+    expect(useSessionStore.getState().status).toBe('signedIn');
+  });
+
+  it('creates the account the first time, named after the email', async () => {
+    session.currentUser.mockResolvedValueOnce(null);
+    session.signIn.mockRejectedValueOnce(authError('invalid_credentials'));
+    session.signUp.mockResolvedValueOnce(tester);
+    await useSessionStore.getState().init();
+    expect(session.signUp).toHaveBeenCalledWith('tester@spellbinder.test', 'password1', 'tester');
+    expect(useSessionStore.getState()).toMatchObject({ status: 'signedIn', user: tester, authError: null });
+  });
+
+  it('keeps the display name within 40 characters', async () => {
+    mockConfig.testUser = { email: `${'a'.repeat(50)}@spellbinder.test`, password: 'password1' };
+    session.currentUser.mockResolvedValueOnce(null);
+    session.signIn.mockRejectedValueOnce(authError('invalid_credentials'));
+    session.signUp.mockResolvedValueOnce(tester);
+    await useSessionStore.getState().init();
+    expect(session.signUp.mock.calls[0][2]).toBe('a'.repeat(40));
+  });
+
+  it.each(['user_already_exists', 'email_exists'])(
+    'shows the sign-in screen with a wrong-password message when the account exists (%s)',
+    async (code) => {
+      session.currentUser.mockResolvedValueOnce(null);
+      session.signIn.mockRejectedValueOnce(authError('invalid_credentials'));
+      session.signUp.mockRejectedValueOnce(authError(code));
+      await useSessionStore.getState().init();
+      expect(useSessionStore.getState()).toMatchObject({
+        status: 'signedOut',
+        user: null,
+        pending: false,
+        authError: 'The test user in .env couldn’t sign in. That email and password don’t match.',
+      });
+    },
+  );
+
+  it('shows the sign-in screen with the reason when the account cannot be created', async () => {
+    session.currentUser.mockResolvedValueOnce(null);
+    session.signIn.mockRejectedValueOnce(authError('invalid_credentials'));
+    session.signUp.mockRejectedValueOnce(authError('weak_password'));
+    await useSessionStore.getState().init();
+    expect(useSessionStore.getState()).toMatchObject({
+      status: 'signedOut',
+      authError: 'The test user in .env couldn’t sign in. Choose a stronger password (at least 8 characters).',
+    });
+  });
+
+  it('does not try to create the account when sign-in fails for another reason', async () => {
+    session.currentUser.mockResolvedValueOnce(null);
+    session.signIn.mockRejectedValueOnce(Object.assign(new Error('fetch failed'), { name: 'AuthRetryableFetchError' }));
+    await useSessionStore.getState().init();
+    expect(session.signUp).not.toHaveBeenCalled();
+    expect(useSessionStore.getState()).toMatchObject({
+      status: 'signedOut',
+      authError: 'The test user in .env couldn’t sign in. Couldn’t reach Spellbinder. Check your connection and try again.',
+    });
+  });
+
+  it('shows the sign-in screen when the profile is missing after signing in', async () => {
+    session.currentUser.mockResolvedValueOnce(null);
+    session.signIn.mockResolvedValueOnce(null);
+    await useSessionStore.getState().init();
+    expect(useSessionStore.getState()).toMatchObject({
+      status: 'signedOut',
+      authError: 'Signed in, but your profile could not be loaded. Try again.',
+    });
+  });
+
+  it('reports a failure to load the session without trying the test user', async () => {
+    session.currentUser.mockRejectedValueOnce(new Error('Supabase: offline'));
+    await useSessionStore.getState().init();
+    expect(session.signIn).not.toHaveBeenCalled();
+    expect(useSessionStore.getState()).toMatchObject({ status: 'error', error: 'Supabase: offline' });
   });
 });
 
