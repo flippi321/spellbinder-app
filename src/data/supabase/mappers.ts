@@ -17,7 +17,7 @@ import type { ScryfallCard } from '@/types/scryfall';
 import { avatarColors, type AvatarColor } from '@/theme/colors';
 
 /**
- * Row shapes of supabase/migrations/0001_init.sql and their camelCase domain twins.
+ * Row shapes of the Supabase schema (spellbinder-db repo, supabase/migrations) and their camelCase domain twins.
  * TODO: replace these hand-written rows with `supabase gen types typescript` output.
  */
 

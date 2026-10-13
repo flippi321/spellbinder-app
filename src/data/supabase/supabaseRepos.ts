@@ -48,7 +48,7 @@ import {
 
 /**
  * Supabase mode (EXPO_PUBLIC_DATA_MODE=supabase). Tables and RLS policies live in
- * supabase/migrations/0001_init.sql: you edit only your own rows; playgroup peers can read.
+ * the spellbinder-db repo (supabase/migrations): you edit only your own rows; playgroup peers can read.
  */
 
 /** Throws on PostgREST errors. Rows are untyped until generated types exist, so callers cast. */

@@ -65,9 +65,9 @@ src/
   types/                  Scryfall subset, domain types, Oracle types
   utils/                  pure helpers (formatting, card helpers, deck stats, legality)
 scripts/build-seed-cards.ts
-supabase/migrations/      schema + RLS (not applied)
-supabase/functions/oracle Edge Function stub (holds the Anthropic key server-side)
 ```
+
+The backend (schema, RLS, Edge Functions such as the Oracle) lives in the separate **`spellbinder-db`** repo.
 
 Data flow: **screens → stores → repositories → services**. Screens select raw store state and derive views with the
 pure selectors in `src/stores/selectors` (memoized), so there's no duplicated state.
@@ -90,12 +90,12 @@ the seed, run `npm run seed:cards`. A seed-integrity test keeps the numbers from
 1,284 cards · 618 spare · 64 foils, …).
 
 **Supabase mode.**
-1. Create a project, then `supabase link` and `supabase db push` to apply `supabase/migrations/0001_init.sql` (review
-   it first — it hasn't been run).
-2. Set the two `EXPO_PUBLIC_SUPABASE_*` values and `EXPO_PUBLIC_DATA_MODE=supabase`.
-3. Sign-in UI isn't built yet: `useSessionStore` already has email-OTP `signInWithOtp` / `verifyOtp`.
-4. Oracle: `supabase secrets set ANTHROPIC_API_KEY=…`, `supabase functions deploy oracle`, then
-   `EXPO_PUBLIC_ORACLE_MODE=edge`.
+1. The database is set up from the `spellbinder-db` repo (see its README).
+2. Set `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` (the project's **publishable** key) and
+   `EXPO_PUBLIC_DATA_MODE=supabase`. For the local stack in `spellbinder-db`, use `http://<your LAN IP>:54321` and the
+   local key from `npx supabase status`.
+3. Sign-in is email + password (no emails are sent). The sign-in screen isn't built yet (TODO SB-6).
+4. Oracle: deploy the `oracle` function from `spellbinder-db`, then set `EXPO_PUBLIC_ORACLE_MODE=edge`.
 
 ## Scryfall etiquette
 
@@ -117,8 +117,8 @@ wherever an `art_crop` is shown, the artist and © Wizards of the Coast are cred
 | Area | Now | Later |
 |---|---|---|
 | Card recognition | `recognizeCardName()` rotates sample names | on-device OCR in a dev build (TODO in `src/services/scan.ts`) |
-| Oracle | canned answers to three prompts | Edge Function building deck/collection context + Claude API (TODOs in `supabase/functions/oracle`) |
-| Auth | demo profile in mock mode | email-OTP screen + playgroup onboarding |
+| Oracle | canned answers to three prompts | Edge Function building deck/collection context + Claude API (TODOs in `spellbinder-db`'s `supabase/functions/oracle`) |
+| Auth | demo profile in mock mode | email + password screen + playgroup onboarding |
 | Imports | add cards one at a time | CSV / text-list import, Scryfall bulk data |
 | Polish | mana symbols drawn as letter pips; template icon/splash images | official symbol SVGs, Spellbinder icon art |
 

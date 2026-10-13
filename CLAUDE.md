@@ -12,7 +12,9 @@ it before making product or UI decisions.
 - **Expo (managed workflow) + React Native + TypeScript (strict)**, using the latest stable Expo SDK.
 - **Expo Router** for navigation (file-based routes in `app/`).
 - **Zustand** for client state (with `persist` + AsyncStorage for anything that should survive restarts).
-- **Supabase** (Postgres + Auth + Row Level Security + Edge Functions) as the backend.
+- **Supabase** (Postgres + Auth + Row Level Security + Edge Functions) as the backend. The backend (migrations, RLS,
+  Edge Functions, its own CLAUDE.md and skills) lives in the sibling repo **`../spellbinder-db`**, shared with the
+  website. This repo holds no SQL; it consumes the schema through generated types. Auth is email + password.
 - **Scryfall API** for all card data and images. We never host card images ourselves.
 - Fonts: **Cinzel** (display) and **Manrope** (UI/body) via `@expo-google-fonts/*`.
 - Icons: inline stroke icons with `react-native-svg` (no emoji, no icon fonts with brand marks).
@@ -36,13 +38,13 @@ Use the matching skill instead of improvising; each one ends with a "Done when" 
 
 - `feature-slice` — new data or persisted actions end to end: type → repo (mock + Supabase) → store → selector → UI.
 - `ui-component` — screens and components built to the design system, tokens and accessibility rules.
-- `supabase-migration` — schema changes: SQL migration + RLS, then mappers and both repos (the schema is shared with the website).
 - `scryfall` — anything that fetches, stores or shows card data or images.
 - `seed-data` — mock seed changes, `npm run seed:cards`, keeping the vision's numbers true.
-- `oracle-edge` — the real Oracle Edge Function and Claude API integration.
 - `write-tests` — test patterns (fake repos, RTL v14, fake clock).
 - `preflight` — the definition of done: tooling plus a hard-rule audit. Run it before reporting any task as finished.
 - `vision-review` — check a screen against `docs/VISION.md`.
+
+Schema changes (`supabase-migration`) and the Oracle Edge Function (`oracle-edge`) have their skills in `../spellbinder-db`.
 
 ## Architecture rules
 

@@ -24,7 +24,7 @@ export const mockOracle: OracleAdapter = {
   },
 };
 
-/** Real Oracle via supabase/functions/oracle (stub server-side for now). */
+/** Real Oracle via the `oracle` Edge Function in the spellbinder-db repo (stub server-side for now). */
 export const edgeOracle: OracleAdapter = {
   async ask(question, context) {
     const { data, error } = await getSupabase().functions.invoke<{ answer: OracleAnswer }>('oracle', {

@@ -40,7 +40,7 @@ and routes. Reuse what already exists — check `src/utils/`, `src/stores/select
 - Add `*Row` types and `toX` / `fromX` mappers in `mappers.ts` (snake_case ↔ camelCase, `null` ↔ `undefined`).
 - Query through `getSupabase()` in `supabaseRepos.ts`; wrap every result in `check(...)`; `chunk()` long `in (...)` lists.
 - Rely on RLS for authorization — don't filter "for security" in the client, filter for intent.
-- If the table or column doesn't exist yet, use the `supabase-migration` skill first.
+- If the table or column doesn't exist yet, add it first in `../spellbinder-db` (its `supabase-migration` skill), then regenerate types.
 
 ## 5. Store — `src/stores/use<Domain>Store.ts`
 One store per domain (`collection`, `decks`, `playgroup`, `scan`, `oracle`, `session`, plus the `cards` cache).
