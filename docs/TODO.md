@@ -38,7 +38,7 @@ This is the work list for turning the mock-data boilerplate into a real app. It 
 M1  Backend foundation    SB-1 → SB-2 → SB-3 → SB-4 → SB-5 → SB-6 → SB-7 → SB-8 → SB-9
 M2  Card cache + sync     CC-1 → CC-2 → CC-3 → CC-4 → CC-5 → CC-6 → CC-7          (needs SB-2, SB-4)
 M3  Real screens          HM-*, BN-*, DK-*                                       (needs M1; BN/DK filters & stats need M2)
-M4  Card scanner          SC-1 → SC-2 → SC-3 → SC-4 → SC-5 → SC-6                (needs CC-4 for set+number lookup)
+M4  Card scanner          SC-1 → SC-2 → SC-3 → SC-4 → SC-5 → SC-6                (SC-3 needs a dev build; SC-5 needs SB-4 + CC-4)
 M5  Playgroup + Oracle    PG-*, OR-*                                             (needs M1)
 M6  Ship to friends       X-*                                                    (anytime; X-1 early)
 ```
@@ -53,16 +53,39 @@ These change what gets built. Each has a recommendation; record the decision her
   `spellbinder-db` (`scripts/sync-cards.ts` + `.github/workflows/sync-cards.yml`), with the secret key in that repo's
   Actions secrets. An Edge Function was ruled out: parsing the ~630 MB bulk file takes several seconds of CPU against
   a 2 s per-request limit and 256 MB of memory, and a gzip stream can't be resumed mid-file across invocations.
-- [ ] **D-2 Which bulk file?** *Recommended:* `default_cards` (every printing, in English where it exists). Scanning,
-  "Change printing" and collection items all need printings. `oracle_cards` (one row per card) is much smaller but
-  doesn't have every printing. Filter out `digital: true` rows either way. *Status:* the sync uses `default_cards`
-  and skips digital and Art Series printings (tokens are kept).
-- [ ] **D-3 How does the scanner recognize cards?**
-  - *Recommended first step:* **cloud recognition**. A Supabase Edge Function `scan` sends the photo to Claude
-    (vision) and gets back name + set code + collector number. Keeps Expo Go, reads the printing too, works on foils
-    and non-English cards. Costs a little per scan and needs a connection.
-  - *Later:* on-device OCR (ML Kit / Apple Vision). Fast, offline and free, but needs a **development build** (leaves
-    Expo Go, per CLAUDE.md that's a deliberate decision) and only reads the name reliably.
+- [x] **D-2 Which bulk file?** *Decided:* **`default_cards`**: every paper printing, in English, or in its printed
+  language when no English printing exists. The sync (CC-2) uses it and skips digital and Art Series printings. It
+  keeps tokens, but the scanner leaves them out (D-3). Scanning, "Change printing" and collection items need every
+  printing, which rules out `oracle_cards` (one row per card). `all_cards` (every language) is several times bigger,
+  and modern non-English cards don't need it: they print the same set code and collector number as the English
+  printing, so the scanner finds them that way (D-3 step 3). For the scanner, SB-4 adds `flavor_name`, `lang`,
+  `released_at` and `promo` to each version.
+  *Revisit if* the group owns many old non-English cards. Those print no set code, so they could only be matched by
+  their printed name, and only `all_cards` has those names.
+- [ ] **D-3 How does the scanner recognize cards?** *Decided (direction):* **on-device OCR, then name matching, then
+  choosing the printing.** No AI and no upload per scan: it's free and fast, and it works offline up to the printing
+  lookup.
+  1. **Read:** on-device text recognition (ML Kit text recognition v2) returns every text line on the photo with its
+     position. Don't crop to the title before OCR. The matcher picks the title line, so rotated layouts (split cards,
+     battles) and odd frames still have a chance.
+  2. **Find the card:** a pure matcher scores the read lines against every card name, face name and flavor name. It
+     tolerates OCR typos, lost punctuation and accents, and the mana cost read as junk at the end of the title line.
+     It returns **ranked candidates with scores**, not a flat list of hits. One name can be several cards (Un-set
+     variants), so candidates are card ids. It auto-accepts only a clear winner. Otherwise the sheet offers the top 3.
+  3. **Choose the printing:** the title alone can't do this, because every printing has the same name. Use the
+     collector line at the bottom when OCR reads it: set code + collector number (2015 frames onward, any language),
+     or collector number + artist (older frames). Flavor-named printings (Godzilla series and similar) match by
+     their title. With no evidence, guess (see *Open*), and the sheet marks the printing as guessed.
+  - *Costs:* real scanning needs a **development build** (X-4 needs builds anyway). Expo Go keeps working with the
+    mock recognizer. OCR reads Latin script only. Stylized titles (showcase, some Secret Lairs) and rotated layouts
+    will sometimes miss, and those fall back to the candidate list or "Type it".
+  - *Dropped as the main path:* cloud recognition (an Edge Function sending the photo to Claude vision). It stays an
+    optional fallback (SC-8), to build only if the benchmark shows the on-device path misses too often.
+  - *Open:* (a) moving to a dev build now, and on which platforms (an iPhone build for friends needs the paid Apple
+    Developer Program); (b) where the matcher runs (recommended: on the device, with a names index cached daily;
+    alternative: a `find_card`-style RPC per scan); (c) the guess order when no printing can be read (recommended: same
+    set as the previous scan in this session, then the newest regular non-promo printing); (d) leaving tokens out of
+    scanning (recommended).
 - [x] **D-4 Prices?** *Decided:* yes, informational only (keeps the app non-commercial). Migration `0005_card_prices.sql`:
   current prices per version in `card_prices` (Scryfall's usd/eur/tix keys, by finish), a daily `card_price_history`
   for owned versions (weekly after 90 days), and the `collection_item_prices` view. Shown later as "≈ €12 to complete".
@@ -133,7 +156,8 @@ regenerate with `npm run db:types` after every migration that reaches the remote
 The cache is two tables since 0003: `cards` (rules, pk = Scryfall oracle_id) and `card_versions` (printings, pk =
 Scryfall id, already has `finishes card_finish[]`). Prices live in `card_prices` (0005), not on the cards.
 1. Add the columns the features below need (all nullable/defaulted = backward compatible):
-   - `card_versions`: `released_at date`, `set_name text`, `lang text`, `digital boolean`, `scryfall_updated_at timestamptz`.
+   - `card_versions`: `released_at date`, `set_name text`, `lang text`, `digital boolean`, `scryfall_updated_at timestamptz`,
+     and for the scanner's printing choice (D-3) `flavor_name text` (front face's for DFCs) and `promo boolean`.
    - `cards`: `game_changer boolean` (Commander Brackets), `produced_mana text[]` (ramp/land stats), `keywords text[]`,
      `edhrec_rank int`.
 2. Indexes: `create extension pg_trgm` + GIN trigram index on `cards.name` (autocomplete and fuzzy match); unique index
@@ -147,7 +171,7 @@ Scryfall id, already has `finishes card_finish[]`). Prices live in `card_prices`
 5. SQL functions (security invoker, `stable`):
    - `search_card_names(q text, lim int)`: prefix + trigram match on distinct names, for autocomplete.
    - `find_card(name text)`: exact, then case-insensitive, then best trigram match above a similarity threshold, for
-     scanner and typed names.
+     typed names and imports. (The scanner matches on the device, SC-4, unless D-3 (b) picks this RPC.)
    - `card_versions_of(card uuid)`: a card's versions, newest first.
 6. After pushing the migration, run `npm run db:types` in the app (the row types follow), then update the mappers
    and `slimCard` with the new fields (`set_name` is already in the TS
@@ -251,7 +275,7 @@ These are mock-only actions or missing actions that the screens below need. Each
 1. SQL tests (pgTAP via `npx supabase test db`) for every RLS policy in VISION §6: own-row writes only, peer reads,
    loan visibility, the `cards` write lockdown.
 2. Mapper round-trip tests (`toX(fromX(x)) === x`) for every table.
-3. Edge Function tests (Deno) for `oracle` and `scan` input validation and auth.
+3. Edge Function tests (Deno) for `oracle` (and `scan`, if SC-8 is built) input validation and auth.
 
 **Done when**
 - [ ] `npx supabase test db` and `npm test` both pass in CI.
@@ -308,7 +332,7 @@ In `createCardRepo()` (`src/data/supabase/supabaseRepos.ts`):
 1. `autocomplete(q)` → `rpc('search_card_names')`. Fall back to Scryfall `/cards/autocomplete` only if the RPC errors.
 2. `findByName(name, { fuzzy })` → `rpc('find_card')`. Fall back to `/cards/named`.
 3. `getPrintings(cardId)` → `rpc('card_versions_of')`. Fall back to the `oracleid:` search.
-4. New `findBySetNumber(set, number)` for the scanner (SC-4), from the table, with fallback to Scryfall `/cards/:set/:number`
+4. New `findBySetNumber(set, number)` for the scanner (SC-5), from the table, with fallback to Scryfall `/cards/:set/:number`
    (add that endpoint to the client).
 5. `getByIds` / `getByCardIds` already read the tables first. Keep the Scryfall fallback for cards newer than the last sync.
 6. Mock repo: unchanged behaviour (Scryfall + bundled catalog).
@@ -544,69 +568,117 @@ isn't loaded yet fail every color, type and search filter and silently disappear
 
 ## 6. Working card scanner (SC)
 
-The pipeline is already split correctly: `recognizeCardName(imageUri)` (mock) → lookup → sheet. Keep the adapter
-signature, put real recognition behind it, and make the result richer (printing, real confidence).
+The pipeline (D-3) has four steps: photo → **read** (OCR lines with positions) → **find the card** (name matcher,
+ranked candidates) → **choose the printing** (collector line, flavor name or a guess) → sheet. Each step is its own
+function. The matcher and the printing choice are pure, so Jest tests them on recorded OCR output without a phone.
+Today `recognizeCardName(imageUri)` (mock) → `findByName` fuzzy → sheet. SC-1 replaces that contract.
 
-### SC-1 · Recognition contract — P0
+### SC-1 · Scan contract and mock — P0
 *Depends on:* D-3
-1. Extend `Recognition` in `src/services/scan.ts` to `{ name, setCode?, collectorNumber?, lang?, confidence }`.
-   The mock fills only `name`. Callers still compile.
-2. Add `EXPO_PUBLIC_SCAN_MODE=mock|edge` to `src/config.ts` and `.env.example`, like the Oracle mode.
+1. Types in `src/services/scan.ts`:
+   - `OcrResult { width, height, lines: { text, box }[] }`: what a recognizer returns. It replaces `Recognition`.
+   - `CardReading { titleLines, setCode?, collectorNumber?, lang?, artist? }`: parsed from the OCR result.
+   - `Identification { card, confidence, printing: 'read' | 'flavor-name' | 'guessed', candidates }`.
+2. The mock recognizer returns fake OCR lines: a sample title with mana-cost junk at the end, and sometimes a
+   collector line. That way the whole pipeline, matcher included, runs in Expo Go and in tests.
+3. Add `EXPO_PUBLIC_SCAN_MODE=mock|ocr` to `src/config.ts` and `.env.example`. `ocr` falls back to the mock (with a
+   dev-only warning) when the native OCR module is missing, as in Expo Go.
 
 ### SC-2 · Photo pipeline — P0
-1. After `takePictureAsync`, crop to the viewfinder rectangle (screen → photo coordinates) and resize to ~1024 px on the
-   long side as JPEG ~0.7 with `expo-image-manipulator` (`npx expo install`, works in Expo Go).
+1. After `takePictureAsync`, crop to the viewfinder rectangle (screen → photo coordinates) with
+   `expo-image-manipulator` (`npx expo install`, works in Expo Go). Keep at least ~1,500 px on the long side so the
+   small collector line stays readable. Nothing is uploaded, so there's no file-size target.
 2. Keep EXIF orientation right on both platforms. Test portrait and landscape holds.
 3. Never store the photo: delete the temp file after recognition.
 
 **Done when**
-- [ ] The uploaded image is the card only, upright, < 300 KB.
+- [ ] The image OCR gets is the card only, upright, with the collector line legible.
 
-### SC-3 · Edge Function `scan` (cloud recognition) — P0
-*Skill:* `oracle-edge` (same patterns: JWT check, secrets, structured output) · *Depends on:* SB-6, SC-2
-1. `supabase/functions/scan/index.ts`: POST image (base64 or multipart) with the user's JWT. Reject without a valid
-   session, images > 2 MB, non-images.
-2. Call Claude (vision) with structured output:
-   `{ name, set_code, collector_number, language, is_card: boolean, confidence: 0–1 }`. Prompt: read the title line,
-   the set code and collector number from the bottom-left. Return `is_card: false` for non-cards.
-3. Per-user rate limit (e.g. 300 scans/day) via a `scan_usage` table or a counter, so a stuck shutter can't burn the budget.
-4. Log nothing that identifies the image. Don't store it.
-5. `edgeRecognizer` in `src/services/scan.ts` calls `supabase.functions.invoke('scan')`. `recognizeCardName` picks
-   mock or edge from `config.scanMode`.
-
-**Done when**
-- [ ] Photos of 20 real cards (old frame, new frame, foil, borderless, showcase, DFC, one non-English) → ≥ 90 % correct
-  names and ≥ 75 % correct printings. Keep that benchmark set (as names + expected ids) in `docs/` for regressions.
-
-### SC-4 · Matching: printing first, then name — P0
-*Depends on:* CC-4, SC-3
-1. If `setCode` + `collectorNumber` come back: `CardRepo.findBySetNumber` → exact printing.
-2. Else / if not found: `findByName(name, { fuzzy: true })` (DB `find_card`, then Scryfall fuzzy).
-3. Confidence = recognition confidence × match quality (exact printing 1.0, exact name 0.95, fuzzy lower). The sheet
-   already shows "98 % match". Make it real.
-4. Low confidence (< 0.7): show the top 3 candidates (autocomplete on the recognized name) to pick from, plus "Type it".
-5. `identifyCard` in `src/services/scan.ts` already takes a `lookup`. Extend it to take the richer recognition.
+### SC-3 · On-device OCR (dev build) — P0
+*Depends on:* D-3 (a), SC-1, X-4 step 1 (`eas.json` with a `development` profile)
+1. Move to an EAS development build. Change CLAUDE.md's Expo Go rule to: the app keeps running in Expo Go, and a
+   native module is allowed only behind a guard with a mock fallback (SC-1 step 3).
+2. Add ML Kit text recognition v2 (Latin script) through a maintained library that reads an image file. Check it
+   against the current Expo SDK. The adapter `ocrRecognizer(imageUri)` returns an `OcrResult` with positions
+   relative to the cropped card.
+3. Benchmark set: 20+ real cards covering old frame, 2015 frame, current frame, foil, borderless, showcase, a DFC
+   front and back, split, adventure, one non-English card and one token. Record each card's raw `OcrResult` as JSON in
+   `tests/fixtures/scan/` with the expected card and version ids, so SC-4 and SC-5 can be tested without a phone.
 
 **Done when**
-- [ ] Unit tests with a fake recognizer cover: exact printing, name-only, fuzzy typo ("Sol Rnig"), no match, low confidence.
+- [ ] OCR runs in a dev build on each platform from D-3 (a), and the benchmark fixtures are committed.
 
-### SC-5 · Scan sheet and session UX — P1
+### SC-4 · Find the card (name matching) — P0
+*Depends on:* SC-1, SC-3 step 3 (fixtures)
+1. Names index: every card name, each face name (DFC, split, adventure, flip) and each flavor name (pointing to its
+   version), mapped to card ids. No tokens or emblems (D-3 (d)). In Supabase mode, a SQL function in spellbinder-db
+   returns the index as a single JSON value (RPCs that return rows stop at 1,000). The device caches it and refreshes
+   it when `card_sync_runs` shows a newer sync. In mock mode it's built from the bundled catalog.
+2. `matchCardNames(lines, index)` in `src/utils/` (pure). It normalizes text (case, accents, `Æ`, apostrophes,
+   punctuation, spaces). It scores each line by edit distance against the best-fitting name inside it, so mana-cost
+   junk at the end doesn't hurt. It weights lines near the top of the card. It returns ranked
+   `{ cardId, name, score }` candidates. Short names (Opt) need a near-exact read. A prefilter (trigrams) keeps it
+   fast over ~35k names.
+3. Auto-accept only when the best score is above a threshold and clearly ahead of the second. Otherwise the sheet shows
+   the top 3 plus "Type it".
+4. Reuse the matcher for "Type it" and the imports (BN-7, DK-2) where it fits.
+
+**Done when**
+- [ ] On the fixtures, ≥ 90 % of benchmark cards get the right card, and **no wrong card is ever auto-accepted**. A
+  miss shows the candidate list. It never adds the wrong card silently.
+- [ ] Unit tests cover a typo ("Sol Rnig"), trailing junk ("Sol Ring ①"), lost accents and punctuation ("Lim-Dul's
+  Vault"), a DFC back face, a split card, a short name and no match.
+
+### SC-5 · Choose the printing — P0
+*Depends on:* SC-4, SB-4 (`flavor_name`, `lang`, `released_at`, `promo`), CC-4 (`findBySetNumber`, `getPrintings`)
+1. Parse the collector line from the bottom lines (pure, in `src/utils/`): collector number (`263/350`, `0263`), set
+   code (`C21`), language (`EN`, `DE`…) and artist (after `Illus.` or the brush icon).
+2. Set code + number read → `findBySetNumber`. Accept the result when its card is the top name candidate, or when no
+   name matched at all. That second case covers modern non-English cards: their title matches nothing, but their
+   collector line does. If it contradicts a strong name match, trust the name and treat the number as misread.
+3. Otherwise score the matched card's printings (`getPrintings`) on the flavor name in the title, the collector number
+   and the artist. If one printing is clearly ahead, take it.
+4. No evidence → guess (D-3 (c)): the same set as the previous scan in this session, then the newest regular
+   (non-promo) printing.
+5. Confidence = name score × printing evidence (read 1.0, artist only lower, guessed lowest). The sheet's
+   "98 % match" shows it.
+6. `identifyCard` returns the new `Identification`. `useScanStore.capture` passes it, with the candidates, to the sheet.
+
+**Done when**
+- [ ] Unit tests on fixtures cover: set + number, an old frame by number + artist, a flavor name, a modern non-English
+  card by set + number, a number that contradicts the name, and no evidence → guess.
+- [ ] On the benchmark, every printing is either right or marked as guessed, and ≥ 75 % of cards from the 2015
+  frame on get the right printing.
+
+### SC-6 · Scan sheet and session UX — P1
 1. Foil toggle: disable when the printing has no foil finish (`finishes` from SB-4); preselect foil for foil-only printings.
-2. "Card found" sheet: show set name + collector number so the user can see which printing was matched.
+2. "Card found" sheet: show set name + collector number so the user can see which printing was matched. A guessed
+   printing says "Printing guessed: check it", with "Change printing" right there.
 3. Toast "Added 1× Sol Ring" gets **Undo** (removes that session entry from collection/deck).
 4. Duplicate guard: the same card scanned twice within ~3 s asks "Add another?" instead of adding silently.
 5. "Done" shows a summary ("Added 14 cards · 2 to Atraxa") before going to Binder.
-6. Offline: a clear "Scanning needs a connection — use Type it" state instead of a generic error.
+6. Offline: reading and name matching still work (the names index is on the device). If the printing lookup can't
+   reach the server, show a clear message with "Try again" instead of a generic error.
 
 **Done when**
 - [ ] `useScanStore.test.ts` covers undo, duplicate guard and offline. A 30-card session works end to end on a phone.
 
-### SC-6 · On-device recognition (dev build) — P2
-*Depends on:* D-3, X-4
-1. Move to an EAS development build (deliberate decision, update CLAUDE.md "Expo Go" rule).
-2. Add on-device text recognition (ML Kit on Android / Vision on iOS through a maintained RN library) as a third
-   recognizer: OCR the title line, use the cloud recognizer only when on-device confidence is low.
-3. Optional: auto-capture when a card-shaped rectangle is steady in the viewfinder (frame processor).
+### SC-7 · Auto-capture — P2
+*Depends on:* SC-5
+1. Scan without the shutter: run OCR on camera frames and capture when a title matches with high confidence and the
+   card has been steady for ~0.5 s. This needs frame processors (`react-native-vision-camera`), which would replace
+   `expo-camera` on the scan screen.
+2. Uses SC-6 step 4's duplicate guard, so a card held still doesn't get added again and again.
+
+### SC-8 · Cloud fallback (optional) — P2
+*Skill:* `oracle-edge` · *Depends on:* SC-5, SB-6
+Build this only if the benchmark shows the on-device path missing too often (stylized titles, rotated layouts,
+non-Latin cards).
+1. Edge Function `scan`: requires the user's JWT, accepts images ≤ 2 MB. It calls Claude vision with structured
+   output `{ name, set_code, collector_number, language, is_card, confidence }`. It logs nothing that identifies the
+   image and doesn't store it.
+2. Per-user daily limit (a `scan_usage` counter), so a stuck shutter can't burn the budget.
+3. Called only when SC-4 has no confident match. Its answer goes through SC-4 and SC-5 like OCR text does.
 
 ---
 
@@ -656,7 +728,7 @@ Follow the `oracle-edge` skill, and the `TODO(context)` / `TODO(claude)` notes i
 1. Replace the placeholder with a structured-output call returning `OracleAnswer` (`src/types/oracle.ts`), including the
    optional `featured` commander and card chips with `tone`. Use the model and settings the `oracle-edge` skill specifies.
 2. Handle refusals, timeouts and errors with a friendly answer instead of a crash.
-3. Per-user daily limit (like SC-3) to cap cost.
+3. Per-user daily limit (a usage counter per user and day) to cap cost.
 
 ### OR-3 · Actions from real answers — P1
 1. Canned answers wire their buttons ("Apply these swaps", "Start a Mothman deck", "Ask Mira") directly. Add an
@@ -715,7 +787,7 @@ Supabase mode.
 ### X-6 · Docs — P1
 1. Keep README's "What's stubbed" table in sync as items here land, and remove rows when done.
 2. Update VISION §6 when the data model changes (SB-4, PG-3, PG-5).
-3. Update `CLAUDE.md` if the Expo Go rule changes (SC-6) or new skills/commands are added.
+3. Update `CLAUDE.md` if the Expo Go rule changes (SC-3) or new skills/commands are added.
 
 ### X-7 · Legal and etiquette check before sharing — P1
 1. Fan Content Policy text and Scryfall attribution stay in About (they're there now). Add Commander Spellbook
