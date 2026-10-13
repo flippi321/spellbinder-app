@@ -34,9 +34,11 @@ The sample world is described in `docs/VISION.md` §8 and the numbers on screen 
 3. Run `npx jest src/data/mock` — `seedIntegrity.test.ts` checks:
    - every seed deck is a legal 100-card Commander deck (`checkCommanderDeck`),
    - Atraxa 94 owned / 6 not owned / 2 in group; Krenko complete; Muldrotha 88/12; Edgar 95/5; 3 friend-fit cards,
-   - binder totals **1,284 cards · 618 spare · 64 foils**,
+   - binder totals **1,284 cards · 927 spare · 64 foils**,
    - 4 of 5 going; leaderboard Mira 7, Jonas 5, You 4, Erik 3, Sanna 2,
-   - every Oracle chip that says "Spare in your binder" is in no deck, and "X has one" is owned by X.
+   - one collection row per user, version and finish (the `collection_items` primary key),
+   - every Oracle chip that says "Spare in your binder" has a spare copy (more owned than your decks use), and
+     "X has one" is owned by X.
 4. If a number has to change on purpose, change it in **all three places together**: `docs/VISION.md`, the UI copy or
    canned answer that shows it, and the integrity test. Ask the user before changing numbers from the vision.
 

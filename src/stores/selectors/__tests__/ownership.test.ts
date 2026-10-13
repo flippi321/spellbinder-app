@@ -9,7 +9,6 @@ import {
 } from '../ownership';
 
 const item = (userId: string, cardId: string, quantity = 1): CollectionItem => ({
-  id: `${userId}-${cardId}`,
   userId,
   versionId: `print-${cardId}`,
   cardId,

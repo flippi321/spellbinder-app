@@ -45,7 +45,6 @@ const alice = profile('user-a', 'Alice');
 const bob = profile('user-b', 'Bob');
 
 const item = (userId: string): CollectionItem => ({
-  id: `item-${userId}`,
   userId,
   versionId: `v-${userId}`,
   cardId: `c-${userId}`,

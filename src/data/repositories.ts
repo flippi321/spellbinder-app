@@ -2,6 +2,7 @@ import type {
   Bracket,
   Card,
   CollectionItem,
+  CollectionItemKey,
   Deck,
   DeckCard,
   Game,
@@ -50,8 +51,9 @@ export interface CardRepo {
 
 export interface CollectionRepo {
   list(userId: string): Promise<CollectionItem[]>;
+  /** Inserts the row, or replaces the one with the same user, version and finish. */
   upsert(item: CollectionItem): Promise<CollectionItem>;
-  remove(itemId: string): Promise<void>;
+  remove(key: CollectionItemKey): Promise<void>;
 }
 
 export interface NewDeck {

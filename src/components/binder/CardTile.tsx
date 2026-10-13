@@ -14,18 +14,22 @@ interface CardTileProps {
   onPress: (entry: BinderEntry) => void;
 }
 
-/** Binder grid tile: 63:88 image, "×3 · 1 foil", Spare chip or "In 2 decks". Foils get a gold border. */
+/**
+ * Binder grid tile: 63:88 image, "×3 · 1 foil", then a "Spare" chip (in no deck), an "N spare" chip (copies beyond
+ * what your decks use) or "In 2 decks". Foils get a gold border.
+ */
 export const CardTile = memo(function CardTile({ entry, card, onPress }: CardTileProps) {
   const foil = entry.foilQuantity > 0;
-  const spare = entry.deckIds.length === 0;
+  const spare = entry.spare > 0;
   const counts = `×${entry.quantity}${foil ? ` · ${entry.foilQuantity === entry.quantity ? 'foil' : `${entry.foilQuantity} foil`}` : ''}`;
-  const decks = spare ? 'Spare' : `In ${entry.deckIds.length} ${entry.deckIds.length === 1 ? 'deck' : 'decks'}`;
+  const inDecks = `In ${entry.deckIds.length} ${entry.deckIds.length === 1 ? 'deck' : 'decks'}`;
+  const decks = !spare ? inDecks : entry.deckIds.length === 0 ? 'Spare' : `${entry.spare} spare`;
 
   return (
     <Pressable
       onPress={() => onPress(entry)}
       accessibilityRole="button"
-      accessibilityLabel={`${card?.name ?? 'Card'}, ${counts.replace('×', '')} copies, ${decks}`}
+      accessibilityLabel={`${card?.name ?? 'Card'}, ${counts.replace('×', '')} copies, ${spare && entry.deckIds.length > 0 ? `${decks}, ${inDecks.toLowerCase()}` : decks}`}
       style={({ pressed }) => [styles.tile, foil && styles.foil, pressed && styles.pressed]}>
       <CardImage card={card} size="normal" radius={radii.sm} />
       <View style={styles.meta}>
@@ -33,7 +37,7 @@ export const CardTile = memo(function CardTile({ entry, card, onPress }: CardTil
           {counts}
         </Text>
         {spare ? (
-          <Chip label="Spare" tone="friend" size="sm" />
+          <Chip label={decks} tone="friend" size="sm" />
         ) : (
           <Text variant="caption" tone="muted">
             {decks}

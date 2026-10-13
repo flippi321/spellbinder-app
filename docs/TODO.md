@@ -90,9 +90,11 @@ These change what gets built. Each has a recommendation; record the decision her
   current prices per version in `card_prices` (Scryfall's usd/eur/tix keys, by finish), a daily `card_price_history`
   for owned versions (weekly after 90 days), and the `collection_item_prices` view. Shown later as "≈ €12 to complete".
   The daily sync (CC-2) writes them.
-- [ ] **D-5 What counts as "spare"?** Today a card is spare only if it's in **no** deck (seed-integrity test pins
-  618). Alternative: copies beyond what your decks use (3 Sol Rings, 2 decks → 1 spare). Pick one, then update
-  `binderTotals`, the seed test and VISION if it changes.
+- [x] **D-5 What counts as "spare"?** *Decided:* copies beyond what your decks use. Per card: every copy you own
+  (all printings and finishes) minus the copies your decks' slots use; at 0 or below there is none to spare
+  (3 Sol Rings, 2 decks → 1 spare). Worked out in the app (`buildBinderEntries`), and the seed now has 927 spare
+  (was 618). To keep one count per printing, migration `0008_collection_items_key.sql` makes
+  `(user_id, version_id, finish)` the primary key of `collection_items` and drops its `id`.
 - [x] **D-6 Sign-in method.** *Decided:* **email + password**, email confirmations off, and the project sends no email
   (no SMTP). `SessionRepo`'s OTP methods get replaced in SB-6. Apple/Google sign-in can come later.
 
@@ -236,8 +238,9 @@ collections, decks or `cards` are seeded yet.
 These are mock-only actions or missing actions that the screens below need. Each needs interface + mock + Supabase + store action.
 1. `DeckRepo.update(deckId, { name, theme, bracket, partnerOracleId })` and `DeckRepo.remove(deckId)`.
 2. `DeckRepo.updateCard` for category and quantity changes (`upsertCard` may already cover this; confirm and test).
-3. `CollectionRepo.update` for foil, condition and printing changes (watch the `unique (user_id, scryfall_id, foil,
-   condition)` constraint: changing foil can merge two stacks).
+3. `CollectionRepo.update` for foil, condition and printing changes. The primary key is `(user_id, version_id,
+   finish)`: changing foil or printing can land on a row you already have (merge the quantities); changing condition
+   never does.
 4. `CollectionRepo.bulkUpsert(items)` for imports (BN-8) and scan sessions. One request per ~500 rows.
 5. `PlaygroupRepo.createGameNight` / `updateGameNight` / `deleteGameNight`.
 6. `PlaygroupRepo.updateLoan` already exists. Add `cancelLoan` (requester deletes a pending request) and use
@@ -543,8 +546,9 @@ isn't loaded yet fail every color, type and search filter and silently disappear
 
 ### BN-6 · Edit what you own — P1
 *Depends on:* SB-8
-1. Card detail → "In your binder": list each stack (printing · foil · condition · qty) instead of one total.
-2. Per stack: change foil, condition, printing (PrintingsSheet), quantity, delete.
+1. Card detail → "In your binder": list each row (printing · finish · condition · qty) instead of one total, and how
+   many are spare.
+2. Per row: change foil, condition, printing (PrintingsSheet), quantity, delete.
 3. Binder tile: show the printing you have most of, and "3 printings" when there are several.
 
 ### BN-7 · Collection import — P1
@@ -561,8 +565,10 @@ isn't loaded yet fail every color, type and search filter and silently disappear
 - [ ] A 1,000-line ManaBox CSV imports in under a minute without a Scryfall 429.
 
 ### BN-8 · Spare definition — P1
-*Depends on:* D-5
-1. Implement the chosen definition in `buildBinderEntries` / `binderTotals`, update `seedIntegrity.test.ts` and VISION §4/§8 if the number changes.
+*Depends on:* D-5 · *Status:* done.
+1. ~~Implement the chosen definition in `buildBinderEntries` / `binderTotals`, update `seedIntegrity.test.ts` and VISION
+   §4/§8 if the number changes.~~ Done: `BinderEntry.inDecks` / `spare`, the Spare filter and the tile's "N spare" chip;
+   927 spare in the seed.
 
 ---
 

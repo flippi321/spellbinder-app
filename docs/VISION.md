@@ -76,10 +76,12 @@ Oracle buttons; pips, name, chips (Bracket, 100 cards, % owned, Legal); buttons 
 proliferate, Lands…) with rows showing a gold check (owned), blue "Jonas has it" pill (friend owns), or orange
 "Missing" pill. Stats = mana-curve bar chart, owned / in group / missing counts.
 
-**Binder** — title "Binder" with "1,284 cards · 618 spare · 64 foils", Oracle and import buttons, search, six
+**Binder** — title "Binder" with "1,284 cards · 927 spare · 64 foils", Oracle and import buttons, search, six
 color filter circles (W U B R G C, multi-select), horizontal type chips (All, Spare, Foils, Creatures, Instants,
-Artifacts, Lands), "Showing N of M", 2-column grid of card tiles (63:88 ratio image, ×qty · foil, "Spare" blue
-chip or "In 2 decks"). Foil cards get a gold-tinted border.
+Artifacts, Lands), "Showing N of M", 2-column grid of card tiles (63:88 ratio image, ×qty · foil, then a blue
+"Spare" chip (in no deck), a blue "2 spare" chip (copies beyond what your decks use) or "In 2 decks"). Foil cards get
+a gold-tinted border. **Spare** = copies you own minus the copies your decks use, counted per card over every printing
+and finish; at 0 or below a card has none to spare (3 Sol Rings in 2 decks → 1 spare).
 
 **Card detail** — large card image, name, "Commander legal" chip, type line, oracle text panel; "In your binder"
 row with − / count / + stepper; "In your decks" chips; friend avatars "Jonas, Mira and Erik own it too";
@@ -174,8 +176,9 @@ A **card** (`card_id`) is the card as a game object, the same for every printing
   image_uris (jsonb), card_faces (jsonb, images per face), finishes (nonfoil|foil|etched), updated_at
 - `card_prices` (version_id, source, usd/usd_foil/usd_etched, eur/eur_foil/eur_etched, tix, updated_at) — current prices,
   written by the daily sync · `card_price_history` (same + captured_on) — daily for owned versions, weekly after 90 days
-- `collection_items` (id, user_id, version_id, card_id, quantity, finish: nonfoil|foil|etched,
-  condition: M|NM|EX|GD|LP|PL|PO (default NM), created_at, updated_at) · view `collection_item_prices` prices each stack
+- `collection_items` (pk user_id + version_id + finish: nonfoil|foil|etched, card_id, quantity,
+  condition: M|NM|EX|GD|LP|PL|PO (default NM), created_at, updated_at) — one row per version and finish you own ·
+  view `collection_item_prices` prices each row
 - `decks` (id, owner_id, name, commander_card_id, partner_card_id null, theme, bracket, created_at, updated_at)
 - `deck_cards` (deck_id, card_id, quantity, category, is_commander) — changes bump `decks.updated_at`
 - `loan_requests` (id, card_id, requester_id, owner_id, status: pending|lent|declined|returned, note, created_at, updated_at)
@@ -208,9 +211,9 @@ collection and decks; loan requests visible to requester and owner. Prices are r
   Card draw (9): Rhystic Study, Phyrexian Arena, Sylvan Library (missing)…; Removal (8): Swords to Plowshares,
   Beast Within, Toxic Deluge (missing)…; Counters & proliferate (14): Doubling Season (Erik has it), Hardened
   Scales, Evolution Sage…; Lands (35): Command Tower, Breeding Pool, Watery Grave (missing)…
-- Binder samples: Arcane Signet ×3, Blood Artist ×2, Command Tower ×4, Counterspell ×3 (1 foil, spare), Cultivate ×3,
-  Krenko ×1 (foil), Path to Exile ×2 (1 foil), Skullclamp ×1 (spare), Sol Ring ×2 (1 foil, in 4 decks),
-  The Wise Mothman ×1 (spare).
+- Binder samples: Arcane Signet ×3, Blood Artist ×2 (1 spare), Command Tower ×4 (1 spare), Counterspell ×3 (1 foil,
+  spare), Cultivate ×3 (1 spare), Krenko ×1 (foil), Path to Exile ×2 (1 foil), Skullclamp ×1 (spare), Sol Ring ×2
+  (1 foil, in 4 decks), The Wise Mothman ×1 (spare).
 - Game night: Thursday 19:00 at Jonas's; wins this season Mira 7, Jonas 5, You 4, Erik 3, Sanna 2 (21 games).
 - Loans: borrowed Cyclonic Rift from Erik; lent Lightning Greaves to Mira. Pending: Jonas wants Rhystic Study.
 

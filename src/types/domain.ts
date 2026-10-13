@@ -36,9 +36,11 @@ export type CardCondition = 'M' | 'NM' | 'EX' | 'GD' | 'LP' | 'PL' | 'PO';
 /** How a copy is printed. Matches Scryfall's `finishes`. */
 export type CardFinish = 'nonfoil' | 'foil' | 'etched';
 
-/** One stack of physical copies of one version. `cardId` powers "Do I own this?" across versions. */
+/**
+ * Your copies of one version in one finish: one row per (userId, versionId, finish), so `quantity` is the whole count.
+ * `cardId` powers "Do I own this?" across versions.
+ */
 export interface CollectionItem {
-  id: string;
   userId: string;
   versionId: string;
   cardId: string;
@@ -48,6 +50,9 @@ export interface CollectionItem {
   createdAt: string;
   updatedAt?: string;
 }
+
+/** What identifies a collection row (the table's primary key). */
+export type CollectionItemKey = Pick<CollectionItem, 'userId' | 'versionId' | 'finish'>;
 
 /** Free-form so users can invent categories; see utils/category.ts for the common ones. */
 export type DeckCategory = string;

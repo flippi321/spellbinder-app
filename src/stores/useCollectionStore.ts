@@ -5,9 +5,15 @@ import { config } from '@/config';
 import { getRepos } from '@/data';
 import type { Card, CollectionItem } from '@/types';
 import { getCardId } from '@/utils/cards';
-import { DEFAULT_CONDITION, finishFor, isFoil, migrateCollectionItem } from '@/utils/collection';
+import {
+  DEFAULT_CONDITION,
+  finishFor,
+  isFoil,
+  mergeCollectionItems,
+  migrateCollectionItem,
+  sameRow,
+} from '@/utils/collection';
 import { messageOf } from '@/utils/errors';
-import { createId } from '@/utils/id';
 
 import { persistStorage, STORE_KEYS } from './storage';
 import { useCardStore } from './useCardStore';
@@ -20,7 +26,7 @@ interface CollectionState {
   loading: boolean;
   error: string | null;
   load(userId: string): Promise<void>;
-  /** Add copies of a version (merges into an existing Near Mint stack of the same finish). `foil` picks foil or etched. */
+  /** Add copies of a version (merges into your row of that version and finish). `foil` picks foil or etched. */
   addCard(card: Card, options?: { quantity?: number; foil?: boolean }): Promise<void>;
   /** +1 adds a non-foil copy of `card`; −1 removes one copy of the same card (this version first). */
   changeQuantity(card: Card, delta: 1 | -1): Promise<void>;
@@ -38,7 +44,7 @@ export const useCollectionStore = create<CollectionState>()(
     (set, get) => {
       /** Optimistic local change, then write through the repository. */
       const save = async (item: CollectionItem) => {
-        set((state) => ({ items: [...state.items.filter((i) => i.id !== item.id), item], error: null }));
+        set((state) => ({ items: [...state.items.filter((i) => !sameRow(i, item)), item], error: null }));
         try {
           await getRepos().collection.upsert(item);
         } catch (error) {
@@ -47,9 +53,9 @@ export const useCollectionStore = create<CollectionState>()(
       };
 
       const removeItem = async (item: CollectionItem) => {
-        set((state) => ({ items: state.items.filter((i) => i.id !== item.id), error: null }));
+        set((state) => ({ items: state.items.filter((i) => !sameRow(i, item)), error: null }));
         try {
-          await getRepos().collection.remove(item.id);
+          await getRepos().collection.remove(item);
         } catch (error) {
           set({ error: messageOf(error) });
         }
@@ -90,14 +96,11 @@ export const useCollectionStore = create<CollectionState>()(
             .catch(() => undefined);
 
           const finish = finishFor(card, foil);
-          const existing = get().items.find(
-            (item) => item.versionId === card.id && item.finish === finish && item.condition === DEFAULT_CONDITION,
-          );
+          const existing = get().items.find((item) => sameRow(item, { userId, versionId: card.id, finish }));
           await save(
             existing
               ? { ...existing, quantity: existing.quantity + quantity }
               : {
-                  id: createId(),
                   userId,
                   versionId: card.id,
                   cardId: getCardId(card),
@@ -127,16 +130,16 @@ export const useCollectionStore = create<CollectionState>()(
     },
     {
       name: STORE_KEYS.collection,
-      version: 2,
+      version: 3,
       storage: persistStorage,
       partialize: ({ items, seeded }) => ({ items, seeded }),
-      // v1 items had oracleId/scryfallId, `foil: boolean` and US grades.
+      // v1 items had oracleId/scryfallId, `foil: boolean` and US grades. v2 items had an `id` and one stack per
+      // condition. Only runs for older versions, so it always merges.
       migrate: (persisted, version) => {
         const state = (persisted ?? {}) as { items?: Record<string, unknown>[]; seeded?: boolean };
-        if (version < 2) {
-          return { items: (state.items ?? []).map(migrateCollectionItem), seeded: state.seeded ?? false };
-        }
-        return persisted as Pick<CollectionState, 'items' | 'seeded'>;
+        const items = state.items ?? [];
+        const v2 = version < 2 ? items.map(migrateCollectionItem) : (items as unknown as CollectionItem[]);
+        return { items: mergeCollectionItems(v2), seeded: state.seeded ?? false };
       },
     },
   ),

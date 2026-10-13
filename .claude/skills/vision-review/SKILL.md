@@ -26,7 +26,7 @@ the must-fix items (and nice-to-haves if they're small), then run the `preflight
    radii (chips 999, cards 16–22, sheets 28); screen padding 20, section gap 18–22, grid gap 10–14; foil = gold-tinted
    border; mana pip colors; identity tints for placeholders and deck banners.
 5. **Data** — numbers come from selectors, not hard-coded strings, and match §8 in mock mode (94% owned · 6 missing,
-   1,284 cards · 618 spare · 64 foils, 4 of 5 going, leaderboard order).
+   1,284 cards · 927 spare · 64 foils, 4 of 5 going, leaderboard order).
 6. **States & behavior** — loading, empty, error and offline (tinted placeholders); interactions the vision describes
    (filters multi-select, steppers, RSVP, lend/decline, scan sheet → toast → session tray, Oracle suggestion chips
    above the input with a ~1 s thinking state).

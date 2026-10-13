@@ -1,4 +1,4 @@
-import type { Card, CardCondition, CardFinish } from '@/types';
+import type { Card, CardCondition, CardFinish, CollectionItem } from '@/types';
 import { Constants } from '@/types/database';
 import {
   CARD_CONDITIONS,
@@ -6,7 +6,9 @@ import {
   DEFAULT_CONDITION,
   finishFor,
   isFoil,
+  mergeCollectionItems,
   migrateCollectionItem,
+  sameRow,
 } from '@/utils/collection';
 
 const CONDITIONS = Object.keys({
@@ -124,6 +126,52 @@ describe('migrateCollectionItem (data saved before persist version 2)', () => {
   it('keeps fields that already have their new names', () => {
     const item = migrateCollectionItem({ ...old, versionId: 'v2', cardId: 'c2', finish: 'etched', condition: 'GD' });
     expect(item).toMatchObject({ versionId: 'v2', cardId: 'c2', finish: 'etched', condition: 'GD' });
+  });
+});
+
+const row = (overrides: Partial<CollectionItem> = {}): CollectionItem => ({
+  userId: 'me',
+  versionId: 'v1',
+  cardId: 'c1',
+  quantity: 1,
+  finish: 'nonfoil',
+  condition: 'NM',
+  createdAt: '2026-10-01T00:00:00.000Z',
+  ...overrides,
+});
+
+describe('sameRow', () => {
+  it('is the same row when user, version and finish match, whatever the condition or quantity', () => {
+    expect(sameRow(row(), row({ condition: 'PO', quantity: 4 }))).toBe(true);
+  });
+
+  it.each([
+    ['user', { userId: 'friend' }],
+    ['version', { versionId: 'v2' }],
+    ['finish', { finish: 'foil' }],
+  ] as [string, Partial<CollectionItem>][])('is another row when the %s differs', (_, change) => {
+    expect(sameRow(row(), row(change))).toBe(false);
+  });
+});
+
+describe('mergeCollectionItems (stacks saved before persist version 3)', () => {
+  it('sums stacks of one row, keeping the first condition, the earliest createdAt and the latest updatedAt', () => {
+    const merged = mergeCollectionItems([
+      row({ quantity: 1, condition: 'EX', createdAt: '2026-10-03', updatedAt: '2026-10-04' }),
+      row({ quantity: 2, createdAt: '2026-10-01', updatedAt: '2026-10-05' }),
+    ]);
+    expect(merged).toEqual([row({ quantity: 3, condition: 'EX', createdAt: '2026-10-01', updatedAt: '2026-10-05' })]);
+  });
+
+  it('keeps other finishes, versions and users as their own rows, in order', () => {
+    const items = [row(), row({ finish: 'foil' }), row({ versionId: 'v2' }), row({ userId: 'friend' })];
+    expect(mergeCollectionItems(items)).toEqual(items);
+  });
+
+  it('drops the old stack id and leaves its input alone', () => {
+    const old = { ...row(), id: 'ci-1' } as CollectionItem;
+    expect(mergeCollectionItems([old, row()])).toEqual([row({ quantity: 2 })]);
+    expect(old.quantity).toBe(1);
   });
 });
 

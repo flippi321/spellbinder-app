@@ -193,7 +193,6 @@ describe('toCard', () => {
 });
 
 const itemRow: CollectionItemRow = {
-  id: 'ci-1',
   user_id: 'me',
   version_id: 'v-sol',
   card_id: 'c-sol',
@@ -207,7 +206,6 @@ const itemRow: CollectionItemRow = {
 describe('collection items', () => {
   it('maps a row to the domain', () => {
     expect(toCollectionItem(itemRow)).toEqual({
-      id: 'ci-1',
       userId: 'me',
       versionId: 'v-sol',
       cardId: 'c-sol',

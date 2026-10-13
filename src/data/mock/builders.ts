@@ -28,12 +28,8 @@ export function collectionItemsFromSeed(userId: string, copies: readonly SeedCop
       condition: 'NM' as const,
       createdAt: SEEDED_AT,
     };
-    if (copy.qty - foil > 0) {
-      items.push({ ...base, id: `ci-${userId}-${card.id}`, quantity: copy.qty - foil, finish: 'nonfoil' });
-    }
-    if (foil > 0) {
-      items.push({ ...base, id: `ci-${userId}-${card.id}-foil`, quantity: foil, finish: 'foil' });
-    }
+    if (copy.qty - foil > 0) items.push({ ...base, quantity: copy.qty - foil, finish: 'nonfoil' });
+    if (foil > 0) items.push({ ...base, quantity: foil, finish: 'foil' });
   }
   return items;
 }

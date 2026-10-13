@@ -61,12 +61,14 @@ describe('adding copies', () => {
     expect(useCollectionStore.getState().items[0].finish).toBe('etched');
   });
 
-  it('starts a new Near Mint stack instead of growing a stack in another condition', async () => {
+  it('adds to your row of the version and finish, whatever its condition', async () => {
     useCollectionStore.setState({
-      items: [{ id: 'old', userId: 'me', versionId: 'v-sol', cardId: 'c-sol', quantity: 1, finish: 'nonfoil', condition: 'GD', createdAt: 'x' }],
+      items: [{ userId: 'me', versionId: 'v-sol', cardId: 'c-sol', quantity: 1, finish: 'nonfoil', condition: 'GD', createdAt: 'x' }],
     });
     await useCollectionStore.getState().addCard(card());
-    expect(useCollectionStore.getState().items.map((item) => item.condition)).toEqual(['GD', 'NM']);
+    expect(useCollectionStore.getState().items).toEqual([
+      expect.objectContaining({ versionId: 'v-sol', finish: 'nonfoil', condition: 'GD', quantity: 2 }),
+    ]);
   });
 
   it('still adds the copy when caching the card fails', async () => {
@@ -78,35 +80,57 @@ describe('adding copies', () => {
   it('removes a nonfoil copy before a foil or etched one', async () => {
     useCollectionStore.setState({
       items: [
-        { id: 'etched', userId: 'me', versionId: 'v-sol', cardId: 'c-sol', quantity: 1, finish: 'etched', condition: 'NM', createdAt: 'x' },
-        { id: 'plain', userId: 'me', versionId: 'v-other', cardId: 'c-sol', quantity: 1, finish: 'nonfoil', condition: 'NM', createdAt: 'x' },
+        { userId: 'me', versionId: 'v-sol', cardId: 'c-sol', quantity: 1, finish: 'etched', condition: 'NM', createdAt: 'x' },
+        { userId: 'me', versionId: 'v-other', cardId: 'c-sol', quantity: 1, finish: 'nonfoil', condition: 'NM', createdAt: 'x' },
       ],
     });
     await useCollectionStore.getState().changeQuantity(card(), -1);
-    expect(useCollectionStore.getState().items.map((item) => item.id)).toEqual(['etched']);
-    expect(remove).toHaveBeenCalledWith('plain');
+    expect(useCollectionStore.getState().items.map((item) => [item.versionId, item.finish])).toEqual([['v-sol', 'etched']]);
+    expect(remove).toHaveBeenCalledWith(expect.objectContaining({ userId: 'me', versionId: 'v-other', finish: 'nonfoil' }));
+  });
+
+  it('takes one copy off a row that has more', async () => {
+    useCollectionStore.setState({
+      items: [{ userId: 'me', versionId: 'v-sol', cardId: 'c-sol', quantity: 3, finish: 'nonfoil', condition: 'NM', createdAt: 'x' }],
+    });
+    await useCollectionStore.getState().changeQuantity(card(), -1);
+    expect(useCollectionStore.getState().items.map((item) => item.quantity)).toEqual([2]);
+    expect(remove).not.toHaveBeenCalled();
   });
 });
 
-describe('persisted data from before version 2', () => {
+describe('persisted data from older versions', () => {
   const rehydrate = async (version: number, items: unknown[]) => {
     await AsyncStorage.setItem(STORE_KEYS.collection, JSON.stringify({ state: { items, seeded: true }, version }));
     await useCollectionStore.persist.rehydrate();
     return useCollectionStore.getState().items;
   };
 
-  it('renames ids, turns foil into a finish and maps US grades', async () => {
+  it('v1: renames ids, turns foil into a finish, maps US grades and drops the stack id', async () => {
     const items = await rehydrate(1, [
       { id: 'a', userId: 'me', scryfallId: 'v1', oracleId: 'c1', quantity: 2, foil: true, condition: 'LP', createdAt: 'x' },
     ]);
     expect(items).toEqual([
-      { id: 'a', userId: 'me', versionId: 'v1', cardId: 'c1', quantity: 2, finish: 'foil', condition: 'EX', createdAt: 'x' },
+      { userId: 'me', versionId: 'v1', cardId: 'c1', quantity: 2, finish: 'foil', condition: 'EX', createdAt: 'x' },
     ]);
     expect(useCollectionStore.getState().seeded).toBe(true);
   });
 
-  it('leaves version 2 data alone (LP stays Light Played)', async () => {
-    const current = { id: 'a', userId: 'me', versionId: 'v1', cardId: 'c1', quantity: 1, finish: 'nonfoil', condition: 'LP', createdAt: 'x' };
-    expect(await rehydrate(2, [current])).toEqual([current]);
+  it('v2: merges stacks of the same version and finish into one row (LP stays Light Played)', async () => {
+    const stack = { userId: 'me', versionId: 'v1', cardId: 'c1', finish: 'nonfoil', createdAt: '2026-10-02' };
+    const items = await rehydrate(2, [
+      { ...stack, id: 'a', quantity: 1, condition: 'LP' },
+      { ...stack, id: 'b', quantity: 2, condition: 'NM', createdAt: '2026-10-01' },
+      { ...stack, id: 'c', quantity: 1, condition: 'NM', finish: 'foil' },
+    ]);
+    expect(items).toEqual([
+      { ...stack, quantity: 3, condition: 'LP', createdAt: '2026-10-01' },
+      { ...stack, quantity: 1, condition: 'NM', finish: 'foil' },
+    ]);
+  });
+
+  it('leaves version 3 data alone', async () => {
+    const current = { userId: 'me', versionId: 'v1', cardId: 'c1', quantity: 1, finish: 'nonfoil', condition: 'LP', createdAt: 'x' };
+    expect(await rehydrate(3, [current])).toEqual([current]);
   });
 });

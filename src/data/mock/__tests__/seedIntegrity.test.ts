@@ -31,8 +31,13 @@ describe('mock seed', () => {
     expect(friendFitCardIds(decks, index)).toHaveLength(3);
   });
 
-  it('matches the binder header: 1,284 cards · 618 spare · 64 foils', () => {
-    expect(binderTotals(entries)).toMatchObject({ cards: 1284, spare: 618, foils: 64 });
+  it('has one collection row per user, version and finish (the table key)', () => {
+    const keys = [...myItems, ...memberItems].map((item) => `${item.userId}/${item.versionId}/${item.finish}`);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('matches the binder header: 1,284 cards · 927 spare · 64 foils', () => {
+    expect(binderTotals(entries)).toMatchObject({ cards: 1284, spare: 927, foils: 64 });
   });
 
   it('matches the playgroup: 4 of 5 going and the season leaderboard', () => {
@@ -52,7 +57,7 @@ describe('mock seed', () => {
     const owners = (name: string) => index.friendOwners.get(getCardId(catalog.require(name))) ?? [];
     for (const chip of chips) {
       const entry = entries.find((e) => e.cardId === getCardId(catalog.require(chip.name)));
-      if (chip.note === 'Spare in your binder') expect([chip.name, entry?.deckIds]).toEqual([chip.name, []]);
+      if (chip.note === 'Spare in your binder') expect([chip.name, (entry?.spare ?? 0) > 0]).toEqual([chip.name, true]);
       const friend = chip.note.match(/^(\w+) has one$/)?.[1];
       if (friend) {
         const friendId = PROFILES.find((p) => p.displayName === friend)!.id;

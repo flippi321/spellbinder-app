@@ -188,7 +188,6 @@ export const fromCard = (
 };
 
 export const toCollectionItem = (row: CollectionItemRow): CollectionItem => ({
-  id: row.id,
   userId: row.user_id,
   versionId: row.version_id,
   cardId: row.card_id,
@@ -201,7 +200,6 @@ export const toCollectionItem = (row: CollectionItemRow): CollectionItem => ({
 
 /** `updated_at` is left out: the database stamps it. */
 export const fromCollectionItem = (item: CollectionItem): TablesInsert<'collection_items'> => ({
-  id: item.id,
   user_id: item.userId,
   version_id: item.versionId,
   card_id: item.cardId,

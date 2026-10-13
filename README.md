@@ -88,7 +88,7 @@ collections, game night, games, loans). `cards.json` holds the real Scryfall ids
 (stored by `oracle_id`) and scanned cards (stored by printing `id`) join correctly. The first launch copies the seed
 into persisted stores; after that your changes stay on the device until **About → Reset demo data**. After editing
 the seed, run `npm run seed:cards`. A seed-integrity test keeps the numbers from the vision true (94% Atraxa,
-1,284 cards · 618 spare · 64 foils, …).
+1,284 cards · 927 spare · 64 foils, …).
 
 **Supabase mode.**
 1. The backend is the **live** hosted Supabase project `fobbpfvhnelpforjqugd`. Its schema is managed in the

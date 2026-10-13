@@ -185,12 +185,23 @@ function createCollectionRepo(ensure: EnsureCached): CollectionRepo {
     async upsert(item) {
       await ensure.versions([item.versionId]);
       const row = check(
-        await getSupabase().from('collection_items').upsert(fromCollectionItem(item)).select().single(),
+        await getSupabase()
+          .from('collection_items')
+          .upsert(fromCollectionItem(item), { onConflict: 'user_id,version_id,finish' })
+          .select()
+          .single(),
       );
       return toCollectionItem(row);
     },
-    async remove(itemId) {
-      check(await getSupabase().from('collection_items').delete().eq('id', itemId));
+    async remove({ userId, versionId, finish }) {
+      check(
+        await getSupabase()
+          .from('collection_items')
+          .delete()
+          .eq('user_id', userId)
+          .eq('version_id', versionId)
+          .eq('finish', finish),
+      );
     },
   };
 }

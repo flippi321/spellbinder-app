@@ -3,31 +3,43 @@ import type { ManaColor } from '@/theme/colors';
 import { getCardFaces, primaryType } from '@/utils/cards';
 import { isFoil } from '@/utils/collection';
 
-/** One binder tile: every version/finish stack of a card, grouped by card id. */
+/** One binder tile: every version and finish row of a card, grouped by card id. */
 export interface BinderEntry {
   cardId: string;
-  /** Version shown on the tile (the first stack's). */
+  /** Version shown on the tile (the first row's). */
   versionId: string;
   quantity: number;
   foilQuantity: number;
-  /** Your decks that run this card. Empty → "Spare". */
+  /** Your decks that run this card. */
   deckIds: string[];
+  /** Copies your decks use, summed over the decks. */
+  inDecks: number;
+  /** Copies no deck needs: `quantity − inDecks`, never below 0. 0 → none to spare. */
+  spare: number;
 }
 
-export function deckIdsByCard(decks: readonly Deck[]): Map<string, string[]> {
-  const map = new Map<string, string[]>();
+export interface DeckUsage {
+  deckIds: string[];
+  /** Copies used, summed over the decks. */
+  copies: number;
+}
+
+/** Per card id: which of your decks run it and how many copies they use in total. */
+export function deckUsageByCard(decks: readonly Deck[]): Map<string, DeckUsage> {
+  const map = new Map<string, DeckUsage>();
   for (const deck of decks) {
     for (const card of deck.cards) {
-      const ids = map.get(card.cardId) ?? [];
-      if (!ids.includes(deck.id)) ids.push(deck.id);
-      map.set(card.cardId, ids);
+      const usage = map.get(card.cardId) ?? { deckIds: [], copies: 0 };
+      if (!usage.deckIds.includes(deck.id)) usage.deckIds.push(deck.id);
+      usage.copies += card.quantity;
+      map.set(card.cardId, usage);
     }
   }
   return map;
 }
 
 export function buildBinderEntries(items: readonly CollectionItem[], decks: readonly Deck[]): BinderEntry[] {
-  const inDecks = deckIdsByCard(decks);
+  const usage = deckUsageByCard(decks);
   const entries = new Map<string, BinderEntry>();
   for (const item of items) {
     if (item.quantity <= 0) continue;
@@ -36,22 +48,26 @@ export function buildBinderEntries(items: readonly CollectionItem[], decks: read
       entry.quantity += item.quantity;
       if (isFoil(item)) entry.foilQuantity += item.quantity;
     } else {
+      const used = usage.get(item.cardId);
       entries.set(item.cardId, {
         cardId: item.cardId,
         versionId: item.versionId,
         quantity: item.quantity,
         foilQuantity: isFoil(item) ? item.quantity : 0,
-        deckIds: inDecks.get(item.cardId) ?? [],
+        deckIds: used?.deckIds ?? [],
+        inDecks: used?.copies ?? 0,
+        spare: 0,
       });
     }
   }
+  for (const entry of entries.values()) entry.spare = Math.max(0, entry.quantity - entry.inDecks);
   return [...entries.values()];
 }
 
 export interface BinderTotals {
   /** Physical cards. */
   cards: number;
-  /** Copies of cards that are in none of your decks. */
+  /** Copies beyond what your decks use (3 Sol Rings in 2 decks → 1 spare). */
   spare: number;
   foils: number;
   /** Distinct cards. */
@@ -65,7 +81,7 @@ export function binderTotals(entries: readonly BinderEntry[]): BinderTotals {
   for (const entry of entries) {
     cards += entry.quantity;
     foils += entry.foilQuantity;
-    if (entry.deckIds.length === 0) spare += entry.quantity;
+    spare += entry.spare;
   }
   return { cards, spare, foils, unique: entries.length };
 }
@@ -81,7 +97,7 @@ export interface BinderFilters {
 
 function matchesType(entry: BinderEntry, card: Card | undefined, type: BinderTypeFilter): boolean {
   if (type === 'all') return true;
-  if (type === 'spare') return entry.deckIds.length === 0;
+  if (type === 'spare') return entry.spare > 0;
   if (type === 'foils') return entry.foilQuantity > 0;
   if (!card) return false;
   const typeLine = getCardFaces(card)[0].type_line ?? card.type_line;

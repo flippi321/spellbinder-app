@@ -276,7 +276,6 @@ export type Database = {
           condition: Database["public"]["Enums"]["card_condition"]
           created_at: string
           finish: Database["public"]["Enums"]["card_finish"]
-          id: string
           quantity: number
           updated_at: string
           user_id: string
@@ -287,7 +286,6 @@ export type Database = {
           condition?: Database["public"]["Enums"]["card_condition"]
           created_at?: string
           finish?: Database["public"]["Enums"]["card_finish"]
-          id?: string
           quantity: number
           updated_at?: string
           user_id?: string
@@ -298,7 +296,6 @@ export type Database = {
           condition?: Database["public"]["Enums"]["card_condition"]
           created_at?: string
           finish?: Database["public"]["Enums"]["card_finish"]
-          id?: string
           quantity?: number
           updated_at?: string
           user_id?: string
@@ -740,7 +737,6 @@ export type Database = {
           card_id: string | null
           condition: Database["public"]["Enums"]["card_condition"] | null
           finish: Database["public"]["Enums"]["card_finish"] | null
-          id: string | null
           prices_updated_at: string | null
           quantity: number | null
           unit_eur: number | null

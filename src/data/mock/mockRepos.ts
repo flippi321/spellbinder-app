@@ -8,6 +8,7 @@ import {
 } from '@/services/scryfall';
 import type { Card, CollectionItem, Deck, Game, LoanRequest, Rsvp } from '@/types';
 import { slimCard } from '@/utils/cards';
+import { sameRow } from '@/utils/collection';
 import { createId } from '@/utils/id';
 
 import type {
@@ -132,11 +133,11 @@ function createMockCollectionRepo(): CollectionRepo {
       return userId === ME ? [...all()] : [];
     },
     async upsert(item) {
-      items = [...all().filter((existing) => existing.id !== item.id), item];
+      items = [...all().filter((existing) => !sameRow(existing, item)), item];
       return item;
     },
-    async remove(itemId) {
-      items = all().filter((existing) => existing.id !== itemId);
+    async remove(key) {
+      items = all().filter((existing) => !sameRow(existing, key));
     },
   };
 }

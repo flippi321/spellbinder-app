@@ -137,7 +137,6 @@ describe('card cache', () => {
 
 describe('writes that name a card make sure it is cached first', () => {
   const item: CollectionItem = {
-    id: 'ci-1',
     userId: 'me',
     versionId: 'v1',
     cardId: 'c1',
@@ -164,6 +163,20 @@ describe('writes that name a card make sure it is cached first', () => {
     ]);
     expect(calls[1]).toEqual(['card_versions', 'in', 'id', ['v1']]);
     expect(calls[2][2]).toMatchObject({ version_id: 'v1', card_id: 'c1', finish: 'etched', condition: 'EX' });
+    expect(calls[2][3]).toEqual({ onConflict: 'user_id,version_id,finish' });
+  });
+
+  it('collection: removes a row by user, version and finish', async () => {
+    const repos = setup({ collection_items: [ok(null)] });
+
+    await repos.collection.remove(item);
+
+    expect(calls).toEqual([
+      ['collection_items', 'delete'],
+      ['collection_items', 'eq', 'user_id', 'me'],
+      ['collection_items', 'eq', 'version_id', 'v1'],
+      ['collection_items', 'eq', 'finish', 'etched'],
+    ]);
   });
 
   it('decks: caches the commander and cards, then inserts by card id', async () => {
