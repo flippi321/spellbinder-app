@@ -10,6 +10,10 @@ This is the work list for turning the mock-data boilerplate into a real app. It 
 - Use the matching skill from `.claude/skills/` for each item (noted as *Skill:*). Every item finishes with the
   `preflight` skill (typecheck, lint, tests and the hard-rule audit).
 - The mock mode (`EXPO_PUBLIC_DATA_MODE=mock`) must keep working throughout. Every repo change gets a mock twin.
+- **Running several agents?** Claim the item in `WORKLOG.md` (in the folder that holds both repos) before starting,
+  and work in your own worktree. When you finish, tick only your own item's boxes here.
+- Database work (migrations, RLS, SQL tests, seed, Edge Functions) happens in `../spellbinder-db`. Paths like
+  `supabase/…` below are in that repo.
 
 ---
 
@@ -74,26 +78,31 @@ These change what gets built. Each has a recommendation; record the decision her
 ## 1. Supabase connection & databases (SB)
 
 > **SB-1, SB-2 and the SQL half of SB-11 are done in the `spellbinder-db` repo** (CLI, `config.toml`, local stack on
-> Podman, reviewed migration, 29 pgTAP tests). What's left here: SB-1 step 5 (`.env` with URL + publishable key).
+> Podman, reviewed migrations `0001_init.sql` + `0002_private_helpers.sql`, 29 pgTAP tests). What's left here: SB-1
+> step 5 (`.env` with URL + publishable key).
+>
+> **Already in the database, not yet used by the app:** the `create_playgroup` / `join_playgroup` RPCs (SB-7), the
+> requester-cancels-pending delete policy and the `lent → returned` rule (SB-8 step 6, PG-2), and the Realtime
+> publication for `game_nights`, `rsvps`, `games`, `loan_requests` (SB-10 step 4).
 
 ### SB-1 · Create the Supabase project and CLI setup — P0
 *Skill:* `supabase-migration` · *Depends on:* —
-1. Create a Supabase project (free tier is enough for ~5 users). Choose an EU region if the group is in Europe.
-2. Add the Supabase CLI as a dev dependency (`npm i -D supabase`), run `npx supabase init` to create
-   `supabase/config.toml`, and commit it.
-3. Set up local development: `npx supabase start` (Docker) so migrations can be tested with `npx supabase db reset`
-   before touching the remote project.
-4. `npx supabase link --project-ref <ref>` (don't push yet).
-5. Copy `.env.example` → `.env` with the project URL + anon key. Never the service-role key.
-6. Add npm scripts: `db:start`, `db:reset`, `db:types` (see SB-3), `functions:serve`.
-7. Document the setup in README → "Supabase mode".
+*Status:* done in `spellbinder-db` except step 5.
+1. ~~Create a Supabase project~~ Done: ref `fobbpfvhnelpforjqugd`.
+2. ~~Add the Supabase CLI and `config.toml`~~ Done, in `spellbinder-db`.
+3. ~~Local development~~ Done: `npm run db:start` in `spellbinder-db` (Podman, see its README).
+4. ~~`npx supabase link`~~ Done (documented in `spellbinder-db` README).
+5. Copy `.env.example` → `.env` with the project URL + **publishable** key. Never the service-role key.
+6. ~~npm scripts~~ Done in `spellbinder-db` (`db:start`, `db:reset`, `types`, `functions:serve`).
+7. Document in this README → "Supabase mode": point to `spellbinder-db` and list the `.env` values.
 
 **Done when**
-- [ ] `supabase/config.toml` committed; local stack starts; README explains the steps.
+- [x] `supabase/config.toml` committed (in `spellbinder-db`); local stack starts; README explains the steps.
 - [ ] `.env` is gitignored and contains only `EXPO_PUBLIC_*` values.
 
 ### SB-2 · Review and apply `0001_init.sql` — P0
 *Skill:* `supabase-migration` · *Depends on:* SB-1
+*Status:* done (see the note above). Remote state can be checked with `npx supabase migration list` in `spellbinder-db`.
 1. Read `supabase/migrations/0001_init.sql` end to end against VISION §6 and the `*Row` types in
    `src/data/supabase/mappers.ts`.
 2. Run it locally with `npx supabase db reset` and fix anything that fails. Don't edit the file once it's been
@@ -104,8 +113,8 @@ These change what gets built. Each has a recommendation; record the decision her
 5. Ask before running `npx supabase db push` to the remote project, then run it.
 
 **Done when**
-- [ ] Migration applies cleanly locally and remotely.
-- [ ] The RLS smoke tests above pass (write them as SQL in `supabase/tests/`; see SB-11).
+- [x] Migration applies cleanly locally and remotely.
+- [x] The RLS smoke tests above pass (`spellbinder-db/supabase/tests/rls.test.sql`; see SB-11).
 
 ### SB-3 · Generated database types — P0
 *Depends on:* SB-2
@@ -145,6 +154,8 @@ These change what gets built. Each has a recommendation; record the decision her
 
 ### SB-5 · Local seed data for Supabase — P1
 *Skill:* `seed-data` · *Depends on:* SB-2
+*Status:* step 1 done in `spellbinder-db/supabase/seed.sql` (password `spellbinder-dev`). Steps 2 and 3 are open: no
+collections, decks or `cards` are seeded yet.
 1. `supabase/seed.sql`: five auth users (You, Jonas, Mira, Erik, Sanna), profiles, "The Thursday Table", a game night,
    RSVPs, 21 games, the loans from VISION §8.
 2. Generate the collection and deck rows from the existing mock seed (`src/data/mock/seed/`) with a small script, so
@@ -162,6 +173,10 @@ These change what gets built. Each has a recommendation; record the decision her
    `display_name` for the profile). Sign-up returns a session immediately (no confirmation email). Show error messages
    and a loading state. Use the design system (Cinzel title, gold primary button). Minimum password length is 8.
 2. Password reset needs email, which the project doesn't send. For now, reset by hand in the Supabase dashboard.
+   **Check first:** `spellbinder-db`'s README and `config.toml` describe Gmail SMTP plus a password-reset code
+   template (`templates/recovery.html`), which contradicts D-6. If SMTP is live on the remote project, build
+   "Forgot password?" → code → new password (`resetPasswordForEmail` + `verifyOtp({ type: 'recovery' })`) instead,
+   and fix D-6 and `spellbinder-db/CLAUDE.md`.
 3. Auth gate in `app/_layout.tsx`: when `useSessionStore.status === 'signedOut'` in Supabase mode, redirect to
    `/sign-in` (Expo Router `Redirect` or a protected group). Mock mode never shows it.
 4. Subscribe to `supabase.auth.onAuthStateChange` in `SessionRepo` / `useSessionStore` so token refresh, sign-out on
@@ -176,6 +191,7 @@ These change what gets built. Each has a recommendation; record the decision her
 
 ### SB-7 · Onboarding: create or join a playgroup — P0
 *Skills:* `feature-slice`, `ui-component` · *Depends on:* SB-6
+*Status:* the database side is done (both RPCs, owner role, the `members: leave` policy, tests). Only app work is left.
 1. Add `PlaygroupRepo.create(name)` → `rpc('create_playgroup')`, `PlaygroupRepo.join(code)` → `rpc('join_playgroup')`,
    `PlaygroupRepo.leave(playgroupId)`. Add mock versions.
 2. After the first sign-in, show onboarding: (a) confirm display name, (b) "Create a playgroup" or "Join with a code".
@@ -219,13 +235,14 @@ These are mock-only actions or missing actions that the screens below need. Each
    friend's RSVP or borrow request shows up without reloading.
 2. Refresh `bootstrapApp()` data when the app returns to the foreground (`AppState`), at most every few minutes.
 3. Pull-to-refresh (`RefreshControl`) on Home, Decks, Binder and Group.
-4. Enable Realtime for those tables in a migration (`alter publication supabase_realtime add table …`).
+4. ~~Enable Realtime for those tables in a migration~~ Done in `0001_init.sql`.
 
 **Done when**
 - [ ] Two devices: an RSVP or a loan request on one appears on the other within seconds.
 
 ### SB-11 · Backend tests — P1
 *Skill:* `write-tests` · *Depends on:* SB-2
+*Status:* step 1 done except the `cards` write lockdown, which gets its test with SB-4. Steps 2 and 3 are open.
 1. SQL tests (pgTAP via `npx supabase test db`) for every RLS policy in VISION §6: own-row writes only, peer reads,
    loan visibility, the `cards` write lockdown.
 2. Mapper round-trip tests (`toX(fromX(x)) === x`) for every table.

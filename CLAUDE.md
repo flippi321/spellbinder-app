@@ -32,6 +32,14 @@ The app must keep running in **Expo Go** until we deliberately move to a dev bui
 
 Run typecheck, lint and tests before saying a task is done.
 
+## Working alongside other agents
+
+Several agents may work on this repo and `../spellbinder-db` at the same time. The work list is `docs/TODO.md`;
+who is doing what is in **`WORKLOG.md` in the folder that holds both repos** (`C:\Users\chrbre\Spellbinder\WORKLOG.md`).
+- Before starting a TODO item, read `WORKLOG.md`, follow its rules, and claim the item with the files you'll touch.
+- Work in your own git worktree on a branch named after the item ID. Never in the main checkout while others run.
+- When done, update your row and tick only your own item's boxes in `docs/TODO.md`. Don't merge to `main`.
+
 ## Skills (`.claude/skills/`)
 
 Use the matching skill instead of improvising; each one ends with a "Done when" checklist.
