@@ -698,7 +698,7 @@ Supabase mode.
 3. On mode change (mock ↔ supabase), discard persisted personal data.
 
 **Done when**
-- [ ] Test: sign in as A, sign out, sign in as B → nothing of A's is visible at any point.
+- [x] Test: sign in as A, sign out, sign in as B → nothing of A's is visible at any point.
 
 ### X-2 · Error reporting and offline awareness — P1
 1. Offline banner (`@react-native-community/netinfo`). Disable network-only actions (scan, Oracle) with an explanation.

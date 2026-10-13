@@ -5,12 +5,11 @@ import { setRepos } from '@/data';
 import { useCardStore } from './useCardStore';
 import { useCollectionStore } from './useCollectionStore';
 import { useDeckStore } from './useDeckStore';
-import { useOracleStore } from './useOracleStore';
 import { usePlaygroupStore } from './usePlaygroupStore';
-import { useScanStore } from './useScanStore';
 import { useSessionStore } from './useSessionStore';
+import { clearUserData, useDataOwnerStore, watchDataOwner } from './userData';
 
-const persistedStores = [useCardStore, useCollectionStore, useDeckStore] as const;
+const persistedStores = [useCardStore, useCollectionStore, useDeckStore, useDataOwnerStore] as const;
 
 const allHydrated = () => persistedStores.every((store) => store.persist.hasHydrated());
 
@@ -24,8 +23,10 @@ export function useStoresHydrated(): boolean {
   return useSyncExternalStore(subscribeToHydration, allHydrated, allHydrated);
 }
 
-/** Session first, then the signed-in user's data. */
+/** Session first, then the signed-in user's data. Run once the persisted stores have hydrated. */
 export async function bootstrapApp(): Promise<void> {
+  // Sign-out, another user or another data mode clears the previous person's data before it can show.
+  watchDataOwner();
   await useSessionStore.getState().init();
   await loadUserData();
 }
@@ -43,11 +44,8 @@ export async function loadUserData(): Promise<void> {
 
 /** About → "Reset demo data": forget local changes and reload the seed. */
 export async function resetDemoData(): Promise<void> {
-  useCollectionStore.getState().reset();
-  useDeckStore.getState().reset();
+  clearUserData();
   useCardStore.getState().reset();
-  useScanStore.getState().endSession();
-  useOracleStore.getState().reset();
   setRepos(null);
   await bootstrapApp();
 }

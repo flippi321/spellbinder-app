@@ -1,5 +1,5 @@
 import { setRepos, type Repos, type SessionRepo } from '@/data';
-import { selectUserId, useSessionStore } from '@/stores/useSessionStore';
+import { isSignedInAs, selectUserId, useSessionStore } from '@/stores/useSessionStore';
 import type { Profile } from '@/types';
 
 const me: Profile = { id: 'me', displayName: 'You', initials: 'YO', avatarColor: 'gold' };
@@ -177,6 +177,16 @@ describe('selectUserId', () => {
     expect(selectUserId(useSessionStore.getState())).toBe('me');
     useSessionStore.setState({ user: null });
     expect(selectUserId(useSessionStore.getState())).toBeNull();
+  });
+});
+
+describe('isSignedInAs', () => {
+  it('is true only for the signed-in user', () => {
+    useSessionStore.setState({ user: me });
+    expect(isSignedInAs('me')).toBe(true);
+    expect(isSignedInAs('someone-else')).toBe(false);
+    useSessionStore.setState({ user: null });
+    expect(isSignedInAs('me')).toBe(false);
   });
 });
 

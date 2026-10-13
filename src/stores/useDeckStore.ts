@@ -10,7 +10,7 @@ import { messageOf } from '@/utils/errors';
 
 import { persistStorage, STORE_KEYS } from './storage';
 import { useCardStore } from './useCardStore';
-import { useSessionStore } from './useSessionStore';
+import { isSignedInAs, useSessionStore } from './useSessionStore';
 
 export type AddToDeckResult = 'added' | 'already-in-deck';
 
@@ -67,8 +67,10 @@ export const useDeckStore = create<DeckState>()(
             set({ loading: true, error: null });
             try {
               const decks = await getRepos().decks.list(ownerId);
+              if (!isSignedInAs(ownerId)) return; // signed out or switched user while loading
               set({ decks, seeded: true, loading: false });
             } catch (error) {
+              if (!isSignedInAs(ownerId)) return;
               set({ loading: false, error: messageOf(error) });
             }
           }

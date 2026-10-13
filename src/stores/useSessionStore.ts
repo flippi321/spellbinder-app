@@ -89,3 +89,6 @@ export const useSessionStore = create<SessionState>()((set, get) => {
 
 /** The signed-in user's id (always set in mock mode). */
 export const selectUserId = (state: SessionState) => state.user?.id ?? null;
+
+/** False once that user has signed out or someone else signed in (drop answers to their requests). */
+export const isSignedInAs = (userId: string) => useSessionStore.getState().user?.id === userId;

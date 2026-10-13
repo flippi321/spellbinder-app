@@ -8,4 +8,6 @@ export const STORE_KEYS = {
   cards: 'spellbinder.cards',
   collection: 'spellbinder.collection',
   decks: 'spellbinder.decks',
+  /** Whose binder and decks the keys above hold (see `userData.ts`). */
+  owner: 'spellbinder.owner',
 } as const;

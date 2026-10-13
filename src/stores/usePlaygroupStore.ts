@@ -6,7 +6,7 @@ import { messageOf } from '@/utils/errors';
 import { currentGameNightId } from '@/utils/gameNight';
 
 import { useCardStore } from './useCardStore';
-import { useSessionStore } from './useSessionStore';
+import { isSignedInAs, useSessionStore } from './useSessionStore';
 
 interface PlaygroupState {
   status: 'idle' | 'loading' | 'ready' | 'none' | 'error';
@@ -24,7 +24,23 @@ interface PlaygroupState {
   respondToLoan(loanId: string, decision: 'lent' | 'declined'): Promise<void>;
   requestLoan(cardId: string, ownerId: string, note?: string): Promise<void>;
   logGame(winnerId: string): Promise<void>;
+  /** Forget the playgroup (sign-out or another user). */
+  reset(): void;
 }
+
+type PlaygroupData = Omit<PlaygroupState, 'load' | 'rsvp' | 'respondToLoan' | 'requestLoan' | 'logGame' | 'reset'>;
+
+const empty: PlaygroupData = {
+  status: 'idle',
+  error: null,
+  playgroup: null,
+  members: [],
+  gameNight: null,
+  rsvps: [],
+  games: [],
+  loans: [],
+  memberItems: [],
+};
 
 const me = () => {
   const id = useSessionStore.getState().user?.id;
@@ -42,20 +58,13 @@ export const usePlaygroupStore = create<PlaygroupState>()((set, get) => {
   };
 
   return {
-    status: 'idle',
-    error: null,
-    playgroup: null,
-    members: [],
-    gameNight: null,
-    rsvps: [],
-    games: [],
-    loans: [],
-    memberItems: [],
+    ...empty,
 
     async load(userId) {
       set({ status: 'loading', error: null });
       try {
         const snapshot = await getRepos().playgroup.load(userId);
+        if (!isSignedInAs(userId)) return; // signed out or switched user while loading
         if (!snapshot) {
           set({ status: 'none' });
           return;
@@ -76,7 +85,7 @@ export const usePlaygroupStore = create<PlaygroupState>()((set, get) => {
           cards.ensureCardIds(snapshot.loans.map((loan) => loan.cardId)),
         ]).catch(() => undefined);
       } catch (error) {
-        set({ status: 'error', error: messageOf(error) });
+        if (isSignedInAs(userId)) set({ status: 'error', error: messageOf(error) });
       }
     },
 
@@ -121,5 +130,7 @@ export const usePlaygroupStore = create<PlaygroupState>()((set, get) => {
       });
       set((state) => ({ games: [...state.games, game] }));
     },
+
+    reset: () => set(empty),
   };
 });

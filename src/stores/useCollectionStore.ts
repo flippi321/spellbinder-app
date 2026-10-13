@@ -11,7 +11,7 @@ import { createId } from '@/utils/id';
 
 import { persistStorage, STORE_KEYS } from './storage';
 import { useCardStore } from './useCardStore';
-import { useSessionStore } from './useSessionStore';
+import { isSignedInAs, useSessionStore } from './useSessionStore';
 
 interface CollectionState {
   items: CollectionItem[];
@@ -68,8 +68,10 @@ export const useCollectionStore = create<CollectionState>()(
             set({ loading: true, error: null });
             try {
               const items = await getRepos().collection.list(userId);
+              if (!isSignedInAs(userId)) return; // signed out or switched user while loading
               set({ items, seeded: true, loading: false });
             } catch (error) {
+              if (!isSignedInAs(userId)) return;
               set({ loading: false, error: messageOf(error) });
             }
           }
