@@ -75,8 +75,10 @@ export function AuthForm({ mode, email, onEmailChange, pending, error, onSubmit,
         value={email}
         onChangeText={onEmailChange}
         placeholder="you@example.com"
-        autoComplete="email"
-        textContentType="emailAddress"
+        // "username", not "email": password managers (iOS Keychain included) only pair a username field with
+        // the password field, so with "email" they don't fill or save the login. The keyboard stays the email one.
+        autoComplete="username"
+        textContentType="username"
         keyboardType="email-address"
         returnKeyType="next"
         onSubmitEditing={() => passwordRef.current?.focus()}

@@ -72,8 +72,9 @@ export function ResetPasswordForm({
           value={email}
           onChangeText={onEmailChange}
           placeholder="you@example.com"
-          autoComplete="email"
-          textContentType="emailAddress"
+          // "username" so the password manager files the new password under this account (see AuthForm).
+          autoComplete="username"
+          textContentType="username"
           keyboardType="email-address"
           returnKeyType="send"
           onSubmitEditing={() => void requestCode()}
