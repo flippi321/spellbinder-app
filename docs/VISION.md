@@ -165,17 +165,28 @@ Brand sigil: circle, inscribed diamond, small center circle (stroke only).
 - `profiles` (id = auth user id, display_name, initials, avatar_color)
 - `playgroups` (id, name, invite_code, created_by)
 - `playgroup_members` (playgroup_id, user_id, role)
-- `cards` — slim Scryfall cache: scryfall_id (pk), oracle_id, name, mana_cost, cmc, type_line, oracle_text,
-  colors, color_identity, legalities (jsonb), image_uris (jsonb), card_faces (jsonb), set, collector_number, artist, updated_at
-- `collection_items` (id, user_id, scryfall_id, oracle_id, quantity, foil, condition, created_at)
-- `decks` (id, owner_id, name, commander_oracle_id, partner_oracle_id null, theme, bracket, created_at)
-- `deck_cards` (deck_id, oracle_id, quantity, category, is_commander)
-- `loan_requests` (id, card_oracle_id, requester_id, owner_id, status: pending|lent|declined|returned, note, created_at)
+A **card** (`card_id`) is the card as a game object, the same for every printing (Scryfall's `oracle_id`). A **version**
+(`version_id`) is one printing of it (Scryfall's `id`). "Oracle" means only the AI feature.
+
+- `cards` — card rules from Scryfall: id (pk = Scryfall oracle_id), name, mana_cost, cmc, type_line, rules_text,
+  colors, color_identity, legalities (jsonb), card_faces (jsonb, rules per face), updated_at
+- `card_versions` — one printing: id (pk = Scryfall id), card_id → cards, set, collector_number, rarity, artist,
+  image_uris (jsonb), card_faces (jsonb, images per face), finishes (nonfoil|foil|etched), updated_at
+- `card_prices` (version_id, source, usd/usd_foil/usd_etched, eur/eur_foil/eur_etched, tix, updated_at) — current prices,
+  written by the daily sync · `card_price_history` (same + captured_on) — daily for owned versions, weekly after 90 days
+- `collection_items` (id, user_id, version_id, card_id, quantity, finish: nonfoil|foil|etched,
+  condition: M|NM|EX|GD|LP|PL|PO (default NM), created_at, updated_at) · view `collection_item_prices` prices each stack
+- `decks` (id, owner_id, name, commander_card_id, partner_card_id null, theme, bracket, created_at, updated_at)
+- `deck_cards` (deck_id, card_id, quantity, category, is_commander) — changes bump `decks.updated_at`
+- `loan_requests` (id, card_id, requester_id, owner_id, status: pending|lent|declined|returned, note, created_at, updated_at)
 - `game_nights` (id, playgroup_id, starts_at, location, notes) · `rsvps` (game_night_id, user_id, status: going|maybe|no)
-- `games` (id, playgroup_id, played_at, winner_id, winner_commander_oracle_id, player_count, duration_minutes)
+- `games` (id, playgroup_id, game_night_id null, played_at, winner_id, winner_commander_card_id, player_count,
+  duration_minutes) — a game's night must be in the same playgroup
+
+Every `card_id` / `version_id` column is a foreign key. Tables rows change in have `updated_at`, stamped by a trigger.
 
 RLS: users edit only their own collection/decks; members of the same playgroup can **read** each other's
-collection and decks; loan requests visible to requester and owner.
+collection and decks; loan requests visible to requester and owner. Prices are read-only for users.
 
 ## 7. Integrations
 

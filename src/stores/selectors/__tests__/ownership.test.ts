@@ -2,25 +2,25 @@ import type { CollectionItem, Deck, DeckCard } from '@/types';
 
 import {
   buildOwnershipIndex,
-  friendFitOracleIds,
+  friendFitCardIds,
   groupDeckCards,
   ownershipOf,
   summarizeDeck,
 } from '../ownership';
 
-const item = (userId: string, oracleId: string, quantity = 1): CollectionItem => ({
-  id: `${userId}-${oracleId}`,
+const item = (userId: string, cardId: string, quantity = 1): CollectionItem => ({
+  id: `${userId}-${cardId}`,
   userId,
-  scryfallId: `print-${oracleId}`,
-  oracleId,
+  versionId: `print-${cardId}`,
+  cardId,
   quantity,
-  foil: false,
+  finish: 'nonfoil',
   condition: 'NM',
   createdAt: '2026-10-01T00:00:00.000Z',
 });
 
-const slot = (oracleId: string, category: string, quantity = 1): DeckCard => ({
-  oracleId,
+const slot = (cardId: string, category: string, quantity = 1): DeckCard => ({
+  cardId,
   category,
   quantity,
   isCommander: category === 'Commander',
@@ -30,8 +30,8 @@ const deck = (id: string, cards: DeckCard[]): Deck => ({
   id,
   ownerId: 'me',
   name: id,
-  commanderOracleId: cards[0].oracleId,
-  partnerOracleId: null,
+  commanderCardId: cards[0].cardId,
+  partnerCardId: null,
   theme: '',
   bracket: 3,
   createdAt: '2026-10-01T00:00:00.000Z',
@@ -52,7 +52,7 @@ const atraxa = deck('atraxa', [
 ]);
 
 describe('ownership selectors', () => {
-  it('joins on oracle id: owned beats friend, friend beats missing', () => {
+  it('joins on card id: owned beats friend, friend beats missing', () => {
     expect(ownershipOf('signet', index)).toEqual({ kind: 'owned' });
     expect(ownershipOf('tithe', index)).toEqual({ kind: 'friend', ownerIds: ['jonas', 'mira'] });
     expect(ownershipOf('library', index)).toEqual({ kind: 'missing' });
@@ -83,13 +83,13 @@ describe('ownership selectors', () => {
 
   it('counts distinct friend-owned cards across decks once', () => {
     const second = deck('second', [slot('commander', 'Commander'), slot('tithe', 'Ramp')]);
-    expect(friendFitOracleIds([atraxa, second], index)).toEqual(['tithe']);
+    expect(friendFitCardIds([atraxa, second], index)).toEqual(['tithe']);
   });
 
   it('groups by category with Commander first and Lands last', () => {
-    const groups = groupDeckCards(atraxa, index, (oracleId) => oracleId);
+    const groups = groupDeckCards(atraxa, index, (cardId) => cardId);
     expect(groups.map((g) => g.category)).toEqual(['Commander', 'Ramp', 'Card draw', 'Lands']);
-    expect(groups[1].rows.map((r) => [r.slot.oracleId, r.status.kind])).toEqual([
+    expect(groups[1].rows.map((r) => [r.slot.cardId, r.status.kind])).toEqual([
       ['signet', 'owned'],
       ['tithe', 'friend'],
     ]);

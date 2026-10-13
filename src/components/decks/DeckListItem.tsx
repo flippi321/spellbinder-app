@@ -6,7 +6,7 @@ import { ManaPips } from '@/components/ui/ManaPips';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Text } from '@/components/ui/Text';
 import type { DeckSummary } from '@/stores/selectors/ownership';
-import { useCardByOracle } from '@/stores/useCardStore';
+import { useCardByCardId } from '@/stores/useCardStore';
 import { colors, radii, spacing } from '@/theme';
 import type { Deck } from '@/types';
 import { percent } from '@/utils/format';
@@ -20,7 +20,7 @@ interface DeckListItemProps {
 
 /** Large deck card on the Decks tab: art banner, pips, bracket, name, theme, ownership. */
 export function DeckListItem({ deck, summary }: DeckListItemProps) {
-  const commander = useCardByOracle(deck.commanderOracleId);
+  const commander = useCardByCardId(deck.commanderCardId);
   const complete = summary?.complete ?? false;
   const ownership = summary
     ? complete

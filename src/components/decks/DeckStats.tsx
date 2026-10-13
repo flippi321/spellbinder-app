@@ -25,7 +25,7 @@ const TYPE_LABELS: Record<PrimaryType, string> = {
 interface DeckStatsProps {
   deck: Deck;
   summary: DeckSummary | undefined;
-  cardOf: (oracleId: string) => MtgCard | undefined;
+  cardOf: (cardId: string) => MtgCard | undefined;
 }
 
 function StatTile({ label, value, tone }: { label: string; value: number; tone: TextTone }) {

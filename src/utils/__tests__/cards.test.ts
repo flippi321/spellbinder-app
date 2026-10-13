@@ -1,6 +1,6 @@
 import type { ScryfallCard } from '@/types/scryfall';
 
-import { canBeCommander, getImageUri, getOracleId, primaryType } from '../cards';
+import { canBeCommander, getImageUri, getCardId, primaryType } from '../cards';
 
 const base: ScryfallCard = {
   id: 'print-1',
@@ -43,14 +43,14 @@ describe('card helpers', () => {
     expect(getImageUri(null)).toBeUndefined();
   });
 
-  it('finds the oracle id on reversible cards', () => {
+  it('finds the card id on reversible cards', () => {
     const reversible: ScryfallCard = {
       ...base,
       oracle_id: undefined,
       card_faces: [{ name: 'A', oracle_id: 'face-oracle' }],
     };
-    expect(getOracleId(base)).toBe('oracle-1');
-    expect(getOracleId(reversible)).toBe('face-oracle');
+    expect(getCardId(base)).toBe('oracle-1');
+    expect(getCardId(reversible)).toBe('face-oracle');
   });
 
   it('classifies types and commanders', () => {

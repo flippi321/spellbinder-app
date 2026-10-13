@@ -29,4 +29,4 @@ export const {
 } = scryfall;
 
 export { ScryfallError } from './scryfallClient';
-export { getArtist, getCardFaces, getImageUri, getOracleId } from '@/utils/cards';
+export { getArtist, getCardFaces, getImageUri, getCardId } from '@/utils/cards';

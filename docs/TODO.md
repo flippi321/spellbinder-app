@@ -65,8 +65,10 @@ These change what gets built. Each has a recommendation; record the decision her
     and non-English cards. Costs a little per scan and needs a connection.
   - *Later:* on-device OCR (ML Kit / Apple Vision). Fast, offline and free, but needs a **development build** (leaves
     Expo Go, per CLAUDE.md that's a deliberate decision) and only reads the name reliably.
-- [ ] **D-4 Prices?** Scryfall includes `prices` (usd/eur/tix) in bulk data and allows displaying them. Recommended:
-  yes, stored on `cards`, shown as "≈ €12 to complete" on decks. It's informational only, which keeps the app non-commercial.
+- [x] **D-4 Prices?** *Decided:* yes, informational only (keeps the app non-commercial). Migration `0005_card_prices.sql`:
+  current prices per version in `card_prices` (Scryfall's usd/eur/tix keys, by finish), a daily `card_price_history`
+  for owned versions (weekly after 90 days), and the `collection_item_prices` view. Shown later as "≈ €12 to complete".
+  The daily sync (CC-2) writes them.
 - [ ] **D-5 What counts as "spare"?** Today a card is spare only if it's in **no** deck (seed-integrity test pins
   618). Alternative: copies beyond what your decks use (3 Sol Rings, 2 decks → 1 spare). Pick one, then update
   `binderTotals`, the seed test and VISION if it changes.
@@ -127,30 +129,32 @@ These change what gets built. Each has a recommendation; record the decision her
 **Done when**
 - [ ] `npm run typecheck` passes with generated types; no hand-written row types left.
 
-### SB-4 · Migration `0002_cards_sync.sql`: extend and lock down the card cache — P0
+### SB-4 · Migration `0006_cards_sync.sql`: extend and lock down the card cache — P0
 *Skill:* `supabase-migration` · *Depends on:* SB-2, D-1, D-2, D-4
-1. Add columns to `cards` that the features below need (all nullable/defaulted = backward compatible):
-   `released_at date`, `set_name text`, `lang text`, `finishes text[]` (foil/nonfoil/etched, for the scan foil toggle),
-   `prices jsonb`, `game_changer boolean` (Commander Brackets), `produced_mana text[]` (ramp/land stats),
-   `keywords text[]`, `edhrec_rank int`, `digital boolean`, `scryfall_updated_at timestamptz`.
-2. Indexes: `create extension pg_trgm` + GIN trigram index on `name` (autocomplete and fuzzy match); unique index on
-   `(set, collector_number, lang)` (scanner lookup); index on `oracle_id` (exists).
-3. **Tighten RLS:** once the sync fills the table, drop the `cards: insert` / `cards: refresh` policies so only the
-   service role (the sync job) writes. Any signed-in user can currently overwrite shared card rows. Keep the client
-   upsert as a fallback only until CC-3 has run once, then remove `CardRepo.save()` writes in Supabase mode.
+The cache is two tables since 0003: `cards` (rules, pk = Scryfall oracle_id) and `card_versions` (printings, pk =
+Scryfall id, already has `finishes card_finish[]`). Prices live in `card_prices` (0005), not on the cards.
+1. Add the columns the features below need (all nullable/defaulted = backward compatible):
+   - `card_versions`: `released_at date`, `set_name text`, `lang text`, `digital boolean`, `scryfall_updated_at timestamptz`.
+   - `cards`: `game_changer boolean` (Commander Brackets), `produced_mana text[]` (ramp/land stats), `keywords text[]`,
+     `edhrec_rank int`.
+2. Indexes: `create extension pg_trgm` + GIN trigram index on `cards.name` (autocomplete and fuzzy match); unique index
+   on `card_versions (set, collector_number, lang)` (scanner lookup); index on `card_versions.card_id` (exists).
+3. **Tighten RLS:** once the sync fills the tables, drop the `cards` / `card_versions` insert and refresh policies so
+   only the service role (the sync job) writes. Any signed-in user can currently overwrite shared card rows. Keep the
+   client upsert as a fallback only until CC-3 has run once, then remove `CardRepo.save()` writes in Supabase mode.
 4. New table `card_sync_runs` (id, started_at, finished_at, bulk_updated_at, rows_upserted, status, error) with RLS
    read for authenticated users, so the app can show "Card data updated 3 h ago" in About.
 5. SQL functions (security invoker, `stable`):
    - `search_card_names(q text, lim int)`: prefix + trigram match on distinct names, for autocomplete.
    - `find_card(name text)`: exact, then case-insensitive, then best trigram match above a similarity threshold, for
      scanner and typed names.
-   - `card_printings(oracle uuid)`: printings newest first.
-6. Update `CardRow`, the mappers and `slimCard` with the new fields, and add the missing ones to `ScryfallCard`
-   (`set_name` and `finishes` are already in the TS type, but not in the table or `CardRow`).
+   - `card_versions_of(card uuid)`: a card's versions, newest first.
+6. Update `CardRow` / `CardVersionRow`, the mappers and `slimCard` with the new fields (`set_name` is already in the TS
+   type, but not in the tables).
 
 **Done when**
-- [ ] Migration applies on top of 0001; new fields round-trip through `toCard`/`fromCard`.
-- [ ] A client JWT can no longer insert/update `cards` (verified by an SQL test).
+- [ ] Migration applies on top of 0005; new fields round-trip through `toCard`/`fromCard`.
+- [ ] A client JWT can no longer insert/update `cards` or `card_versions` (verified by an SQL test).
 
 ### SB-5 · Local seed data for Supabase — P1
 *Skill:* `seed-data` · *Depends on:* SB-2
@@ -277,13 +281,19 @@ when they're older than 24 h. This cuts Scryfall API traffic to almost nothing (
 2. Insert a `card_sync_runs` row with status `running`.
 3. Stream-download `download_uri` and stream-parse the JSON array (e.g. `stream-json`). Never `JSON.parse` the whole file.
 4. For each card: skip `digital: true`, map with `slimCard` plus the SB-4 fields, collect into batches of ~1,000.
-5. Upsert each batch with `onConflict: 'scryfall_id'` using the service-role client. Retry a batch up to 3 times with backoff.
-6. Never delete rows: collection items reference `cards(scryfall_id)`.
-7. Update the run row: `finished_at`, `rows_upserted`, `status: 'ok' | 'failed'`, `error`.
-8. Log progress (rows/s, total) for the Actions log.
+5. Upsert each batch with the service-role client, in this order (foreign keys): `cards` (deduplicated by card id,
+   `onConflict: 'id'`), then `card_versions` (`onConflict: 'id'`), then `card_prices` from each card's `prices`
+   (`onConflict: 'version_id,source'`, `source: 'scryfall'`, `updated_at` = now). Split the card with the app's
+   `fromCard` mapper. Retry a batch up to 3 times with backoff.
+6. Never delete rows: collection items, decks, loans and games reference `cards` / `card_versions`.
+7. After the last batch: `rpc('snapshot_card_prices')` (today's prices of owned versions into `card_price_history`),
+   then `rpc('compact_card_price_history')` (keeps daily rows for 90 days, Mondays after that). Both are service-role only.
+8. Update the run row: `finished_at`, `rows_upserted`, `status: 'ok' | 'failed'`, `error`.
+9. Log progress (rows/s, total) for the Actions log.
 
 **Done when**
-- [ ] Running it locally against `supabase start` fills `cards` with the full card pool and a second run exits early.
+- [ ] Running it locally against `supabase start` fills `cards`, `card_versions` and `card_prices` with the full card pool
+  and a second run exits early.
 - [ ] Peak memory stays low (streaming); runtime is documented in the README.
 
 ### CC-3 · Schedule it every 24 h — P0
@@ -304,10 +314,10 @@ when they're older than 24 h. This cuts Scryfall API traffic to almost nothing (
 In `createCardRepo()` (`src/data/supabase/supabaseRepos.ts`):
 1. `autocomplete(q)` → `rpc('search_card_names')`. Fall back to Scryfall `/cards/autocomplete` only if the RPC errors.
 2. `findByName(name, { fuzzy })` → `rpc('find_card')`. Fall back to `/cards/named`.
-3. `getPrintings(oracleId)` → `rpc('card_printings')`. Fall back to the `oracleid:` search.
+3. `getPrintings(cardId)` → `rpc('card_versions_of')`. Fall back to the `oracleid:` search.
 4. New `findBySetNumber(set, number)` for the scanner (SC-4), from the table, with fallback to Scryfall `/cards/:set/:number`
    (add that endpoint to the client).
-5. `getByIds` / `getByOracleIds` already read the table first. Keep the Scryfall fallback for cards newer than the last sync.
+5. `getByIds` / `getByCardIds` already read the tables first. Keep the Scryfall fallback for cards newer than the last sync.
 6. Mock repo: unchanged behaviour (Scryfall + bundled catalog).
 
 **Done when**

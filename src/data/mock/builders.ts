@@ -1,5 +1,5 @@
 import type { CollectionItem, Deck, DeckCard, Game, LoanRequest } from '@/types';
-import { getOracleId } from '@/utils/cards';
+import { getCardId } from '@/utils/cards';
 
 import { catalog } from './catalog';
 import {
@@ -23,16 +23,16 @@ export function collectionItemsFromSeed(userId: string, copies: readonly SeedCop
     const foil = copy.foil ?? 0;
     const base = {
       userId,
-      scryfallId: card.id,
-      oracleId: getOracleId(card),
+      versionId: card.id,
+      cardId: getCardId(card),
       condition: 'NM' as const,
       createdAt: SEEDED_AT,
     };
     if (copy.qty - foil > 0) {
-      items.push({ ...base, id: `ci-${userId}-${card.id}`, quantity: copy.qty - foil, foil: false });
+      items.push({ ...base, id: `ci-${userId}-${card.id}`, quantity: copy.qty - foil, finish: 'nonfoil' });
     }
     if (foil > 0) {
-      items.push({ ...base, id: `ci-${userId}-${card.id}-foil`, quantity: foil, foil: true });
+      items.push({ ...base, id: `ci-${userId}-${card.id}-foil`, quantity: foil, finish: 'foil' });
     }
   }
   return items;
@@ -40,22 +40,22 @@ export function collectionItemsFromSeed(userId: string, copies: readonly SeedCop
 
 export function decksFromSeed(ownerId: string, seeds: readonly SeedDeck[] = SEED_DECKS): Deck[] {
   return seeds.map((seed) => {
-    const commanderOracleId = getOracleId(catalog.require(seed.commander));
+    const commanderCardId = getCardId(catalog.require(seed.commander));
     const cards: DeckCard[] = [
-      { oracleId: commanderOracleId, quantity: 1, category: 'Commander', isCommander: true },
+      { cardId: commanderCardId, quantity: 1, category: 'Commander', isCommander: true },
     ];
     for (const [category, slots] of Object.entries(seed.categories)) {
       for (const slot of slots) {
         const [name, quantity] = typeof slot === 'string' ? [slot, 1] : slot;
-        cards.push({ oracleId: getOracleId(catalog.require(name)), quantity, category, isCommander: false });
+        cards.push({ cardId: getCardId(catalog.require(name)), quantity, category, isCommander: false });
       }
     }
     return {
       id: seed.id,
       ownerId,
       name: seed.name,
-      commanderOracleId,
-      partnerOracleId: null,
+      commanderCardId,
+      partnerCardId: null,
       theme: seed.theme,
       bracket: seed.bracket,
       createdAt: seed.createdAt,
@@ -79,7 +79,8 @@ export function gamesFromSeed(now: Date): Game[] {
       playgroupId: PLAYGROUP.id,
       playedAt: playedAt.toISOString(),
       winnerId,
-      winnerCommanderOracleId: null,
+      winnerCommanderCardId: null,
+      gameNightId: null,
       playerCount: 4,
       durationMinutes: 75 + ((index * 17) % 50),
     };
@@ -89,6 +90,6 @@ export function gamesFromSeed(now: Date): Game[] {
 export function loansFromSeed(): LoanRequest[] {
   return SEED_LOANS.map(({ cardName, ...loan }) => ({
     ...loan,
-    cardOracleId: getOracleId(catalog.require(cardName)),
+    cardId: getCardId(catalog.require(cardName)),
   }));
 }

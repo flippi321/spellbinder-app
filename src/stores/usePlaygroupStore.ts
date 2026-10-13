@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { getRepos } from '@/data';
 import type { CollectionItem, Game, GameNight, LoanRequest, Playgroup, Profile, Rsvp, RsvpStatus } from '@/types';
 import { messageOf } from '@/utils/errors';
+import { currentGameNightId } from '@/utils/gameNight';
 
 import { useCardStore } from './useCardStore';
 import { useSessionStore } from './useSessionStore';
@@ -21,7 +22,7 @@ interface PlaygroupState {
   load(userId: string): Promise<void>;
   rsvp(status: RsvpStatus): Promise<void>;
   respondToLoan(loanId: string, decision: 'lent' | 'declined'): Promise<void>;
-  requestLoan(oracleId: string, ownerId: string, note?: string): Promise<void>;
+  requestLoan(cardId: string, ownerId: string, note?: string): Promise<void>;
   logGame(winnerId: string): Promise<void>;
 }
 
@@ -71,8 +72,8 @@ export const usePlaygroupStore = create<PlaygroupState>()((set, get) => {
         });
         const cards = useCardStore.getState();
         await Promise.all([
-          cards.ensureIds(snapshot.memberItems.map((item) => item.scryfallId)),
-          cards.ensureOracleIds(snapshot.loans.map((loan) => loan.cardOracleId)),
+          cards.ensureIds(snapshot.memberItems.map((item) => item.versionId)),
+          cards.ensureCardIds(snapshot.loans.map((loan) => loan.cardId)),
         ]).catch(() => undefined);
       } catch (error) {
         set({ status: 'error', error: messageOf(error) });
@@ -96,9 +97,9 @@ export const usePlaygroupStore = create<PlaygroupState>()((set, get) => {
       await writeThrough(() => getRepos().playgroup.updateLoan(loanId, decision));
     },
 
-    async requestLoan(oracleId, ownerId, note) {
+    async requestLoan(cardId, ownerId, note) {
       const loan = await getRepos().playgroup.requestLoan({
-        cardOracleId: oracleId,
+        cardId: cardId,
         requesterId: me(),
         ownerId,
         note: note ?? null,
@@ -113,7 +114,8 @@ export const usePlaygroupStore = create<PlaygroupState>()((set, get) => {
         playgroupId: playgroup.id,
         playedAt: new Date().toISOString(),
         winnerId,
-        winnerCommanderOracleId: null,
+        winnerCommanderCardId: null,
+        gameNightId: currentGameNightId(get().gameNight),
         playerCount: Math.max(2, get().members.length),
         durationMinutes: null,
       });

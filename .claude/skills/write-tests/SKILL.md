@@ -125,7 +125,7 @@ that applies gets at least one test. The ones that don't apply are skipped on pu
    past any size limit (`chunk` at 100/101 rows, Scryfall batches at 75/76 identifiers, autocomplete at 1/2 chars).
 3. **Every thrown error and rejection** (see below): valid input → no throw; each invalid input → throws.
 4. **Every enum value** (see below).
-5. **Both sides of every boolean and optional:** `foil` true/false, `fuzzy` true/false, `partnerOracleId` null and set,
+5. **Both sides of every boolean and optional:** `foil` true/false, `fuzzy` true/false, `partnerCardId` null and set,
    `data.session` present and absent, a card with and without `card_faces`.
 6. **Async failure:** the dependency rejects → the error surfaces where the code promises (thrown, rejected, or the
    store's `error`), and state is not left half-updated (`loading` back to `false`, no phantom items).

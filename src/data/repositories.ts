@@ -28,14 +28,14 @@ export interface SessionRepo {
 }
 
 export interface CardRepo {
-  /** Cards by Scryfall printing id. */
+  /** Cards by version id. */
   getByIds(ids: string[]): Promise<Card[]>;
-  /** One representative printing per oracle id. */
-  getByOracleIds(oracleIds: string[]): Promise<Card[]>;
+  /** One representative printing per card id. */
+  getByCardIds(cardIds: string[]): Promise<Card[]>;
   /** Exact (or fuzzy) name lookup; null when Scryfall has no match. */
   findByName(name: string, options?: { fuzzy?: boolean }): Promise<Card | null>;
   autocomplete(query: string): Promise<string[]>;
-  getPrintings(oracleId: string): Promise<Card[]>;
+  getPrintings(cardId: string): Promise<Card[]>;
   /** Remember cards (Supabase: upsert into the shared `cards` cache table). */
   save(cards: Card[]): Promise<void>;
 }
@@ -49,7 +49,7 @@ export interface CollectionRepo {
 export interface NewDeck {
   ownerId: string;
   name: string;
-  commanderOracleId: string;
+  commanderCardId: string;
   theme: string;
   bracket: Bracket;
   cards: DeckCard[];
@@ -59,7 +59,7 @@ export interface DeckRepo {
   list(ownerId: string): Promise<Deck[]>;
   create(deck: NewDeck): Promise<Deck>;
   upsertCard(deckId: string, card: DeckCard): Promise<void>;
-  removeCard(deckId: string, oracleId: string): Promise<void>;
+  removeCard(deckId: string, cardId: string): Promise<void>;
 }
 
 /** Everything the Group tab needs, loaded in one go. */
@@ -79,7 +79,7 @@ export interface PlaygroupRepo {
   load(userId: string): Promise<PlaygroupSnapshot | null>;
   setRsvp(rsvp: Rsvp): Promise<void>;
   updateLoan(loanId: string, status: LoanStatus): Promise<void>;
-  requestLoan(request: Pick<LoanRequest, 'cardOracleId' | 'requesterId' | 'ownerId' | 'note'>): Promise<LoanRequest>;
+  requestLoan(request: Pick<LoanRequest, 'cardId' | 'requesterId' | 'ownerId' | 'note'>): Promise<LoanRequest>;
   logGame(game: Omit<Game, 'id'>): Promise<Game>;
 }
 

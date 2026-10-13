@@ -17,8 +17,8 @@ interface WhoHasItPanelProps {
   memberItems: readonly CollectionItem[];
   loans: readonly LoanRequest[];
   membersById: ReadonlyMap<string, Profile>;
-  cardOf: (oracleId: string) => Card | undefined;
-  onAsk: (oracleId: string, ownerId: string) => Promise<void>;
+  cardOf: (cardId: string) => Card | undefined;
+  onAsk: (cardId: string, ownerId: string) => Promise<void>;
 }
 
 /** Search every collection in the group; "Ask" sends a borrow request. */
@@ -26,9 +26,9 @@ export function WhoHasItPanel({ me, myItems, memberItems, loans, membersById, ca
   const [query, setQuery] = useState('');
   const [asking, setAsking] = useState<string | null>(null);
   const items = useMemo(() => [...myItems, ...memberItems], [myItems, memberItems]);
-  const results = useMemo(() => whoHas(query, items, (oracleId) => cardOf(oracleId)?.name), [query, items, cardOf]);
-  const asked = (oracleId: string) =>
-    loans.some((loan) => loan.requesterId === me && loan.cardOracleId === oracleId && loan.status === 'pending');
+  const results = useMemo(() => whoHas(query, items, (cardId) => cardOf(cardId)?.name), [query, items, cardOf]);
+  const asked = (cardId: string) =>
+    loans.some((loan) => loan.requesterId === me && loan.cardId === cardId && loan.status === 'pending');
 
   return (
     <View style={styles.stack}>
@@ -54,7 +54,7 @@ export function WhoHasItPanel({ me, myItems, memberItems, loans, membersById, ca
         </Text>
       ) : (
         results.map((result) => {
-          const card = cardOf(result.oracleId);
+          const card = cardOf(result.cardId);
           const friends = result.owners
             .filter((owner) => owner.userId !== me)
             .sort((a, b) => b.quantity - a.quantity);
@@ -63,9 +63,9 @@ export function WhoHasItPanel({ me, myItems, memberItems, loans, membersById, ca
             .map((owner) => membersById.get(owner.userId))
             .filter((p): p is Profile => Boolean(p));
           const target = friends[0];
-          const alreadyAsked = asked(result.oracleId);
+          const alreadyAsked = asked(result.cardId);
           return (
-            <View key={result.oracleId} style={styles.row}>
+            <View key={result.cardId} style={styles.row}>
               <Pressable
                 onPress={card ? () => router.push({ pathname: '/card/[id]', params: { id: card.id } }) : undefined}
                 accessibilityRole="button"
@@ -90,16 +90,16 @@ export function WhoHasItPanel({ me, myItems, memberItems, loans, membersById, ca
                   size="sm"
                   variant={alreadyAsked ? 'secondary' : 'primary'}
                   disabled={alreadyAsked}
-                  loading={asking === result.oracleId}
+                  loading={asking === result.cardId}
                   accessibilityLabel={
                     alreadyAsked
                       ? `Already asked for ${result.name}`
                       : `Ask ${membersById.get(target.userId)?.displayName ?? 'a friend'} to borrow ${result.name}`
                   }
                   onPress={async () => {
-                    setAsking(result.oracleId);
+                    setAsking(result.cardId);
                     try {
-                      await onAsk(result.oracleId, target.userId);
+                      await onAsk(result.cardId, target.userId);
                     } finally {
                       setAsking(null);
                     }

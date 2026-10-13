@@ -2,9 +2,9 @@ import type { Card, CollectionItem, Deck } from '@/types';
 
 import { binderTotals, buildBinderEntries, filterBinder } from '../binder';
 
-const card = (oracleId: string, name: string, typeLine: string, identity: string[]): Card => ({
-  id: `print-${oracleId}`,
-  oracle_id: oracleId,
+const card = (cardId: string, name: string, typeLine: string, identity: string[]): Card => ({
+  id: `print-${cardId}`,
+  oracle_id: cardId,
   name,
   layout: 'normal',
   cmc: 1,
@@ -23,13 +23,13 @@ const cards: Record<string, Card> = {
   pool: card('pool', 'Breeding Pool', 'Land — Forest Island', ['G', 'U']),
 };
 
-const stack = (oracleId: string, quantity: number, foil = false, printing = `print-${oracleId}`): CollectionItem => ({
-  id: `${oracleId}-${foil}-${printing}`,
+const stack = (cardId: string, quantity: number, foil = false, printing = `print-${cardId}`): CollectionItem => ({
+  id: `${cardId}-${foil}-${printing}`,
   userId: 'me',
-  scryfallId: printing,
-  oracleId,
+  versionId: printing,
+  cardId,
   quantity,
-  foil,
+  finish: foil ? 'foil' : 'nonfoil',
   condition: 'NM',
   createdAt: '2026-10-01T00:00:00.000Z',
 });
@@ -48,25 +48,25 @@ const decks: Deck[] = [
     id: 'd1',
     ownerId: 'me',
     name: 'D1',
-    commanderOracleId: 'x',
-    partnerOracleId: null,
+    commanderCardId: 'x',
+    partnerCardId: null,
     theme: '',
     bracket: 2,
     createdAt: '',
     cards: [
-      { oracleId: 'sol', quantity: 1, category: 'Ramp', isCommander: false },
-      { oracleId: 'pool', quantity: 1, category: 'Lands', isCommander: false },
+      { cardId: 'sol', quantity: 1, category: 'Ramp', isCommander: false },
+      { cardId: 'pool', quantity: 1, category: 'Lands', isCommander: false },
     ],
   },
 ];
 
 const entries = buildBinderEntries(items, decks);
-const cardOf = (entry: { oracleId: string }) => cards[entry.oracleId];
+const cardOf = (entry: { cardId: string }) => cards[entry.cardId];
 
 describe('binder selectors', () => {
-  it('groups printings and foils by oracle id', () => {
-    const sol = entries.find((e) => e.oracleId === 'sol');
-    expect(sol).toMatchObject({ quantity: 2, foilQuantity: 1, deckIds: ['d1'], scryfallId: 'print-sol' });
+  it('groups printings and foils by card id', () => {
+    const sol = entries.find((e) => e.cardId === 'sol');
+    expect(sol).toMatchObject({ quantity: 2, foilQuantity: 1, deckIds: ['d1'], versionId: 'print-sol' });
   });
 
   it('counts cards, spare copies (cards in no deck) and foils', () => {

@@ -5,7 +5,7 @@ import { ManaPips } from '@/components/ui/ManaPips';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Text } from '@/components/ui/Text';
 import type { DeckSummary } from '@/stores/selectors/ownership';
-import { useCardByOracle } from '@/stores/useCardStore';
+import { useCardByCardId } from '@/stores/useCardStore';
 import { colors, radii, spacing } from '@/theme';
 import type { Deck } from '@/types';
 import { percent, shortDeckName } from '@/utils/format';
@@ -19,7 +19,7 @@ interface DeckTileProps {
 
 /** Compact deck tile for the Home 2×2 grid. */
 export function DeckTile({ deck, summary }: DeckTileProps) {
-  const commander = useCardByOracle(deck.commanderOracleId);
+  const commander = useCardByCardId(deck.commanderCardId);
   const complete = summary?.complete ?? false;
   const status = !summary ? ' ' : complete ? 'Complete' : `${summary.notOwned} missing`;
 

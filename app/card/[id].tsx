@@ -25,7 +25,7 @@ import { useDeckStore } from '@/stores/useDeckStore';
 import { usePlaygroupStore } from '@/stores/usePlaygroupStore';
 import { colors, layout, radii, spacing } from '@/theme';
 import type { Profile, ToastMessage } from '@/types';
-import { getCardFaces, getOracleId, isCommanderLegal } from '@/utils/cards';
+import { getCardFaces, getCardId, isCommanderLegal } from '@/utils/cards';
 import { joinNames, shortDeckName } from '@/utils/format';
 
 export default function CardDetailScreen() {
@@ -65,10 +65,10 @@ export default function CardDetailScreen() {
     );
   }
 
-  const oracleId = getOracleId(card);
-  const owned = items.filter((item) => item.oracleId === oracleId).reduce((sum, item) => sum + item.quantity, 0);
-  const inDecks = decks.filter((deck) => deck.cards.some((c) => c.oracleId === oracleId));
-  const friendIds = [...new Set(memberItems.filter((i) => i.oracleId === oracleId && i.quantity > 0).map((i) => i.userId))];
+  const cardId = getCardId(card);
+  const owned = items.filter((item) => item.cardId === cardId).reduce((sum, item) => sum + item.quantity, 0);
+  const inDecks = decks.filter((deck) => deck.cards.some((c) => c.cardId === cardId));
+  const friendIds = [...new Set(memberItems.filter((i) => i.cardId === cardId && i.quantity > 0).map((i) => i.userId))];
   const friends = friendIds.map((friendId) => membersById.get(friendId)).filter((p): p is Profile => Boolean(p));
   const faces = getCardFaces(card);
   const legal = isCommanderLegal(card);
@@ -186,7 +186,7 @@ export default function CardDetailScreen() {
       <PrintingsSheet
         visible={showPrintings}
         onClose={() => setShowPrintings(false)}
-        oracleId={oracleId}
+        cardId={cardId}
         currentId={card.id}
         onPick={(printing) => router.setParams({ id: printing.id })}
       />
@@ -194,7 +194,7 @@ export default function CardDetailScreen() {
         visible={pickingDeck}
         onClose={() => setPickingDeck(false)}
         title="Add to deck"
-        containsOracleId={oracleId}
+        containsCardId={cardId}
         onSelect={async (value) => {
           if (value === 'binder') return;
           const deck = decks.find((d) => d.id === value.deckId);

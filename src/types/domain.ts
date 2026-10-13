@@ -2,7 +2,10 @@ import type { AvatarColor } from '@/theme/colors';
 
 import type { ScryfallCard } from './scryfall';
 
-/** A cached Scryfall card (one printing). The local twin of the `cards` table. */
+/**
+ * A cached Scryfall card: one version (printing) plus its card's rules. In Supabase it's a `card_versions` row joined
+ * to its `cards` row. `card.id` is the version id; `getCardId(card)` is the card id (Scryfall's oracle_id).
+ */
 export type Card = ScryfallCard;
 
 export interface Profile {
@@ -27,26 +30,31 @@ export interface PlaygroupMember {
   role: PlaygroupRole;
 }
 
-export type CardCondition = 'NM' | 'LP' | 'MP' | 'HP' | 'DMG';
+/** Cardmarket's grading scale, best first; labels in utils/collection.ts. New copies are Near Mint. */
+export type CardCondition = 'M' | 'NM' | 'EX' | 'GD' | 'LP' | 'PL' | 'PO';
 
-/** One stack of physical copies. Stored by Scryfall printing id; `oracleId` powers "Do I own this?". */
+/** How a copy is printed. Matches Scryfall's `finishes`. */
+export type CardFinish = 'nonfoil' | 'foil' | 'etched';
+
+/** One stack of physical copies of one version. `cardId` powers "Do I own this?" across versions. */
 export interface CollectionItem {
   id: string;
   userId: string;
-  scryfallId: string;
-  oracleId: string;
+  versionId: string;
+  cardId: string;
   quantity: number;
-  foil: boolean;
+  finish: CardFinish;
   condition: CardCondition;
   createdAt: string;
+  updatedAt?: string;
 }
 
 /** Free-form so users can invent categories; see utils/category.ts for the common ones. */
 export type DeckCategory = string;
 
-/** A deck slot. Stored by oracle id so any printing you own counts. */
+/** A deck slot. Stored by card id so any version you own counts. */
 export interface DeckCard {
-  oracleId: string;
+  cardId: string;
   quantity: number;
   category: DeckCategory;
   isCommander: boolean;
@@ -59,11 +67,12 @@ export interface Deck {
   id: string;
   ownerId: string;
   name: string;
-  commanderOracleId: string;
-  partnerOracleId: string | null;
+  commanderCardId: string;
+  partnerCardId: string | null;
   theme: string;
   bracket: Bracket;
   createdAt: string;
+  updatedAt?: string;
   cards: DeckCard[];
 }
 
@@ -71,12 +80,13 @@ export type LoanStatus = 'pending' | 'lent' | 'declined' | 'returned';
 
 export interface LoanRequest {
   id: string;
-  cardOracleId: string;
+  cardId: string;
   requesterId: string;
   ownerId: string;
   status: LoanStatus;
   note: string | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface GameNight {
@@ -100,7 +110,9 @@ export interface Game {
   playgroupId: string;
   playedAt: string;
   winnerId: string;
-  winnerCommanderOracleId: string | null;
+  winnerCommanderCardId: string | null;
+  /** The game night it was played at; null for games outside one. */
+  gameNightId: string | null;
   playerCount: number;
   durationMinutes: number | null;
 }

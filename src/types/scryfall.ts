@@ -1,6 +1,7 @@
 /**
  * The subset of Scryfall's card object (https://scryfall.com/docs/api/cards) Spellbinder uses.
- * Kept in Scryfall's snake_case so API responses and the `cards` cache table map 1:1.
+ * Kept in Scryfall's snake_case, as the API sends it. supabase/mappers.ts splits it into a `cards` row (rules) and a
+ * `card_versions` row (printing), renaming oracle_id → card_id and oracle_text → rules_text.
  */
 export type ImageSize = 'small' | 'normal' | 'large' | 'png' | 'art_crop' | 'border_crop';
 
@@ -25,9 +26,9 @@ export interface ScryfallCardFace {
 
 export interface ScryfallCard {
   object?: 'card';
-  /** Scryfall printing id — collection items are stored by this. */
+  /** Scryfall id of this printing: our version id (`versionId`). Collection items are stored by it. */
   id: string;
-  /** Shared by every printing — deck cards are stored by this. Missing on reversible cards. */
+  /** Shared by every printing: our card id (`cardId`, via `getCardId`). Missing on reversible cards. */
   oracle_id?: string;
   name: string;
   layout: string;

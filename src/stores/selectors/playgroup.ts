@@ -45,7 +45,7 @@ export function activeLoans(loans: readonly LoanRequest[], me: string): ActiveLo
 }
 
 export interface WhoHasResult {
-  oracleId: string;
+  cardId: string;
   name: string;
   owners: { userId: string; quantity: number }[];
 }
@@ -54,7 +54,7 @@ export interface WhoHasResult {
 export function whoHas(
   query: string,
   items: readonly CollectionItem[],
-  nameOf: (oracleId: string) => string | undefined,
+  nameOf: (cardId: string) => string | undefined,
   limit = 25,
 ): WhoHasResult[] {
   const q = query.trim().toLowerCase();
@@ -62,13 +62,13 @@ export function whoHas(
   const results = new Map<string, WhoHasResult>();
   for (const item of items) {
     if (item.quantity <= 0) continue;
-    const name = nameOf(item.oracleId);
+    const name = nameOf(item.cardId);
     if (!name || !name.toLowerCase().includes(q)) continue;
-    const result = results.get(item.oracleId) ?? { oracleId: item.oracleId, name, owners: [] };
+    const result = results.get(item.cardId) ?? { cardId: item.cardId, name, owners: [] };
     const owner = result.owners.find((o) => o.userId === item.userId);
     if (owner) owner.quantity += item.quantity;
     else result.owners.push({ userId: item.userId, quantity: item.quantity });
-    results.set(item.oracleId, result);
+    results.set(item.cardId, result);
   }
   return [...results.values()].sort((a, b) => a.name.localeCompare(b.name)).slice(0, limit);
 }

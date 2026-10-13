@@ -76,5 +76,6 @@ Schema changes (`supabase-migration`) and the Oracle Edge Function (`oracle-edge
   (https://scryfall.com/docs/api). Never crop, distort or watermark card images; when showing `art_crop`, show the
   artist name nearby.
 - Keep the app free and non-commercial, and show Wizards of the Coast's Fan Content Policy disclaimer in Settings/About.
-- Store collection items by **Scryfall printing `id`**; store deck cards by **`oracle_id`**. "Do I own this?" joins on `oracle_id`.
+- Store collection items by **`versionId`** (Scryfall's printing `id`) plus `cardId`; store deck cards, loans and games by
+  **`cardId`** (Scryfall's `oracle_id`, read with `getCardId(card)`). "Do I own this?" joins on `cardId`.
 - Accessibility: touch targets ≥ 44 pt, `accessibilityLabel` on icon-only buttons, text contrast ≥ 4.5:1.

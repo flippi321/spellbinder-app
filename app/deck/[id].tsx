@@ -47,13 +47,13 @@ export default function DeckDetailScreen() {
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
   const groups = useMemo(
-    () => (deck ? groupDeckCards(deck, index, (oracleId) => cardOf(oracleId)?.name ?? '') : []),
+    () => (deck ? groupDeckCards(deck, index, (cardId) => cardOf(cardId)?.name ?? '') : []),
     [deck, index, cardOf],
   );
 
   if (!deck) return <NotFound title="Deck not found" message="It may have been deleted on another device." />;
 
-  const commander = cardOf(deck.commanderOracleId);
+  const commander = cardOf(deck.commanderCardId);
   const legality = checkCommanderDeck(deck, cardOf);
   const size = deck.cards.reduce((sum, card) => sum + card.quantity, 0);
   // The first two categories start open; tapping a header flips it.

@@ -156,7 +156,7 @@ export default function GroupScreen() {
             loans={loans}
             membersById={membersById}
             cardOf={cardOf}
-            onAsk={(oracleId, ownerId) => usePlaygroupStore.getState().requestLoan(oracleId, ownerId)}
+            onAsk={(cardId, ownerId) => usePlaygroupStore.getState().requestLoan(cardId, ownerId)}
           />
         ) : null}
       </Screen>

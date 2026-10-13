@@ -13,28 +13,28 @@ import { messageOf } from '@/utils/errors';
 interface PrintingsSheetProps {
   visible: boolean;
   onClose: () => void;
-  oracleId: string;
+  cardId: string;
   currentId: string;
   onPick: (card: Card) => void;
 }
 
 /** Every printing of a card (Scryfall `oracleid:` search, newest first). */
-export function PrintingsSheet({ visible, onClose, oracleId, currentId, onPick }: PrintingsSheetProps) {
-  const [result, setResult] = useState<{ oracleId: string; printings: Card[]; error: string | null } | null>(null);
-  const loaded = result?.oracleId === oracleId ? result : null;
+export function PrintingsSheet({ visible, onClose, cardId, currentId, onPick }: PrintingsSheetProps) {
+  const [result, setResult] = useState<{ cardId: string; printings: Card[]; error: string | null } | null>(null);
+  const loaded = result?.cardId === cardId ? result : null;
 
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
     useCardStore
       .getState()
-      .getPrintings(oracleId)
-      .then((printings) => !cancelled && setResult({ oracleId, printings, error: null }))
-      .catch((error: unknown) => !cancelled && setResult({ oracleId, printings: [], error: messageOf(error) }));
+      .getPrintings(cardId)
+      .then((printings) => !cancelled && setResult({ cardId, printings, error: null }))
+      .catch((error: unknown) => !cancelled && setResult({ cardId, printings: [], error: messageOf(error) }));
     return () => {
       cancelled = true;
     };
-  }, [visible, oracleId]);
+  }, [visible, cardId]);
 
   return (
     <Sheet visible={visible} onClose={onClose} title="Other printings" tall>

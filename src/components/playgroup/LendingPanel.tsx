@@ -16,7 +16,7 @@ interface LendingPanelProps {
   loans: readonly LoanRequest[];
   me: string;
   membersById: ReadonlyMap<string, Profile>;
-  cardOf: (oracleId: string) => MtgCard | undefined;
+  cardOf: (cardId: string) => MtgCard | undefined;
   onRespond: (loanId: string, decision: 'lent' | 'declined') => void;
 }
 
@@ -26,7 +26,7 @@ export function LendingPanel({ loans, me, membersById, cardOf, onRespond }: Lend
   const outgoing = outgoingRequests(loans, me);
   const onLoan = activeLoans(loans, me);
   const nameOf = (userId: string) => membersById.get(userId)?.displayName ?? 'A friend';
-  const cardName = (oracleId: string) => cardOf(oracleId)?.name ?? 'a card';
+  const cardName = (cardId: string) => cardOf(cardId)?.name ?? 'a card';
   const rows = [
     ...onLoan,
     ...outgoing.map((loan) => ({ loan, direction: 'asked' as const, otherId: loan.ownerId })),
@@ -51,7 +51,7 @@ export function LendingPanel({ loans, me, membersById, cardOf, onRespond }: Lend
                   <Text variant="bodyStrong" style={styles.flex}>
                     {nameOf(loan.requesterId)} wants to borrow{' '}
                     <Text variant="bodyStrong" tone="goldSoft">
-                      {cardName(loan.cardOracleId)}
+                      {cardName(loan.cardId)}
                     </Text>
                   </Text>
                 </View>
@@ -77,7 +77,7 @@ export function LendingPanel({ loans, me, membersById, cardOf, onRespond }: Lend
         </Text>
       ) : null}
       {rows.map(({ loan, direction, otherId }) => {
-        const card = cardOf(loan.cardOracleId);
+        const card = cardOf(loan.cardId);
         const d = describe[direction];
         const detail = `${d.prefix} ${nameOf(otherId)}`;
         return (

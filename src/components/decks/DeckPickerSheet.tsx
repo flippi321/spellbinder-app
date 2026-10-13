@@ -20,7 +20,7 @@ interface DeckPickerSheetProps {
   /** Highlights the current choice. */
   selected?: PickerValue;
   /** Decks that already contain the card get an "In deck" note. */
-  containsOracleId?: string;
+  containsCardId?: string;
 }
 
 const isSelected = (value: PickerValue, selected: PickerValue | undefined) =>
@@ -35,7 +35,7 @@ export function DeckPickerSheet({
   onSelect,
   includeBinder = false,
   selected,
-  containsOracleId,
+  containsCardId,
 }: DeckPickerSheetProps) {
   const decks = useDeckStore((s) => s.decks);
   const cardOf = useCardLookup();
@@ -80,8 +80,8 @@ export function DeckPickerSheet({
             deck.id,
             { deckId: deck.id },
             deck.name,
-            cardOf(deck.commanderOracleId)?.color_identity ?? [],
-            containsOracleId && deck.cards.some((c) => c.oracleId === containsOracleId) ? 'In deck' : undefined,
+            cardOf(deck.commanderCardId)?.color_identity ?? [],
+            containsCardId && deck.cards.some((c) => c.cardId === containsCardId) ? 'In deck' : undefined,
           ),
         )}
       </View>

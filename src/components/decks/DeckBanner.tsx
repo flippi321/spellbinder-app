@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { CardImage } from '@/components/ui/CardImage';
-import { useCardByOracle } from '@/stores/useCardStore';
+import { useCardByCardId } from '@/stores/useCardStore';
 import { bannerTint } from '@/theme';
 import type { Deck } from '@/types';
 
@@ -22,7 +22,7 @@ interface DeckBannerProps {
  * itself is never tinted or color-shifted (Scryfall image guidelines).
  */
 export function DeckBanner({ deck, height, showArt = false, radius = 0, children, style }: DeckBannerProps) {
-  const commander = useCardByOracle(deck.commanderOracleId);
+  const commander = useCardByCardId(deck.commanderCardId);
   return (
     <View
       style={[

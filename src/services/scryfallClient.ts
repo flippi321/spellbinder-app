@@ -257,8 +257,8 @@ export function createScryfallClient(options: ScryfallClientOptions) {
     return { cards, notFound };
   }
 
-  async function getPrintings(oracleId: string): Promise<ScryfallCard[]> {
-    const list = await search(`oracleid:${oracleId}`, { unique: 'prints', order: 'released', dir: 'desc' });
+  async function getPrintings(cardId: string): Promise<ScryfallCard[]> {
+    const list = await search(`oracleid:${cardId}`, { unique: 'prints', order: 'released', dir: 'desc' });
     return list.data;
   }
 

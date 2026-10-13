@@ -5,7 +5,7 @@ import type { Card, Profile } from '@/types';
 import { binderTotals, buildBinderEntries, type BinderEntry, type BinderTotals } from './selectors/binder';
 import {
   buildOwnershipIndex,
-  friendFitOracleIds,
+  friendFitCardIds,
   summarizeDeck,
   type DeckSummary,
   type OwnershipIndex,
@@ -36,7 +36,7 @@ export function useDeckSummaries(): Map<string, DeckSummary> {
 export function useFriendFitCount(): number {
   const decks = useDeckStore((s) => s.decks);
   const index = useOwnershipIndex();
-  return useMemo(() => friendFitOracleIds(decks, index).length, [decks, index]);
+  return useMemo(() => friendFitCardIds(decks, index).length, [decks, index]);
 }
 
 export function useBinderEntries(): BinderEntry[] {
@@ -55,16 +55,16 @@ export function useMembersById(): Map<string, Profile> {
   return useMemo(() => new Map(members.map((member) => [member.id, member])), [members]);
 }
 
-/** Lookup for cards by oracle id (deck rows, chips). */
-export function useCardLookup(): (oracleId: string) => Card | undefined {
+/** Lookup for cards by card id (deck rows, chips). */
+export function useCardLookup(): (cardId: string) => Card | undefined {
   const cards = useCardStore((s) => s.cards);
-  const oracleToId = useCardStore((s) => s.oracleToId);
+  const versionIdByCardId = useCardStore((s) => s.versionIdByCardId);
   return useMemo(
-    () => (oracleId: string) => {
-      const id = oracleToId[oracleId];
+    () => (cardId: string) => {
+      const id = versionIdByCardId[cardId];
       return id ? cards[id] : undefined;
     },
-    [cards, oracleToId],
+    [cards, versionIdByCardId],
   );
 }
 

@@ -31,7 +31,7 @@ and 404 → empty list for searches.
 | Scan / typed name | `getNamedFuzzy(name)` / `getNamedExact(name)` | Fuzzy for OCR output; 404 = no match → `null` in the repo. |
 | Filtered search | `search(q, { unique, order, dir, page })` | Full Scryfall syntax, e.g. `id<=wubg f:commander t:legendary t:creature`. Paginate with `has_more`. |
 | Many known cards (imports, hydration) | `getCollection(identifiers)` | Batches of 75; identifiers `{id}`, `{oracle_id}`, `{name}`, `{name, set}`, `{set, collector_number}`; returns `notFound`. |
-| All printings | `getPrintings(oracleId)` | `oracleid:` search, `unique=prints`, newest first. |
+| All printings | `getPrintings(cardId)` | `oracleid:` search, `unique=prints`, newest first. |
 | One printing | `getById(id)` | |
 | Thousands of cards / full sync | **bulk data** (`/bulk-data`, `oracle_cards` or `default_cards`) | Download once (server-side or a script), not card-by-card. Add it to the client if you need it. |
 
@@ -40,10 +40,11 @@ Add a new endpoint as a function inside `createScryfallClient` (so it shares the
 
 ## Card shape & identity
 - Store and pass `slimCard(card)` (`src/utils/cards.ts`) — only the fields in `ScryfallCard` (`src/types/scryfall.ts`)
-  and the `cards` table. Caching full Scryfall objects bloats AsyncStorage.
-- **Printing `id`** → collection items. **`oracle_id`** → deck cards, loans, ownership. Always read it with
-  `getOracleId(card)` — reversible cards only have it on their faces.
-- Repos cache what they fetch: `CardRepo.save()` (Supabase: upsert into the shared `cards` table); stores use
+  and the `cards` / `card_versions` tables. Caching full Scryfall objects bloats AsyncStorage.
+- **Printing `id`** = our `versionId` → collection items. **`oracle_id`** = our `cardId` → deck cards, loans, ownership.
+  Always read the card id with
+  `getCardId(card)` — reversible cards only have it on their faces.
+- Repos cache what they fetch: `CardRepo.save()` (Supabase: upsert `cards`, then `card_versions`); stores use
   `useCardStore` (`put`, `ensureIds`) as the local cache.
 
 ## Images
@@ -60,6 +61,6 @@ no image.
 
 ## Done when
 - [ ] No direct Scryfall `fetch`; new endpoints live in the client, with a test.
-- [ ] Printing id vs oracle id used correctly; `slimCard` before caching or storing.
+- [ ] Version id vs card id used correctly; `slimCard` before caching or storing.
 - [ ] DFCs render (face images), art crops show the artist.
 - [ ] The `preflight` skill passes.

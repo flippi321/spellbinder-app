@@ -1,46 +1,47 @@
 import type { Card, CollectionItem, Deck } from '@/types';
 import type { ManaColor } from '@/theme/colors';
 import { getCardFaces, primaryType } from '@/utils/cards';
+import { isFoil } from '@/utils/collection';
 
-/** One binder tile: every printing/foil stack of a card, grouped by oracle id. */
+/** One binder tile: every version/finish stack of a card, grouped by card id. */
 export interface BinderEntry {
-  oracleId: string;
-  /** Printing shown on the tile (the first stack's). */
-  scryfallId: string;
+  cardId: string;
+  /** Version shown on the tile (the first stack's). */
+  versionId: string;
   quantity: number;
   foilQuantity: number;
   /** Your decks that run this card. Empty → "Spare". */
   deckIds: string[];
 }
 
-export function deckIdsByOracle(decks: readonly Deck[]): Map<string, string[]> {
+export function deckIdsByCard(decks: readonly Deck[]): Map<string, string[]> {
   const map = new Map<string, string[]>();
   for (const deck of decks) {
     for (const card of deck.cards) {
-      const ids = map.get(card.oracleId) ?? [];
+      const ids = map.get(card.cardId) ?? [];
       if (!ids.includes(deck.id)) ids.push(deck.id);
-      map.set(card.oracleId, ids);
+      map.set(card.cardId, ids);
     }
   }
   return map;
 }
 
 export function buildBinderEntries(items: readonly CollectionItem[], decks: readonly Deck[]): BinderEntry[] {
-  const inDecks = deckIdsByOracle(decks);
+  const inDecks = deckIdsByCard(decks);
   const entries = new Map<string, BinderEntry>();
   for (const item of items) {
     if (item.quantity <= 0) continue;
-    const entry = entries.get(item.oracleId);
+    const entry = entries.get(item.cardId);
     if (entry) {
       entry.quantity += item.quantity;
-      if (item.foil) entry.foilQuantity += item.quantity;
+      if (isFoil(item)) entry.foilQuantity += item.quantity;
     } else {
-      entries.set(item.oracleId, {
-        oracleId: item.oracleId,
-        scryfallId: item.scryfallId,
+      entries.set(item.cardId, {
+        cardId: item.cardId,
+        versionId: item.versionId,
         quantity: item.quantity,
-        foilQuantity: item.foil ? item.quantity : 0,
-        deckIds: inDecks.get(item.oracleId) ?? [],
+        foilQuantity: isFoil(item) ? item.quantity : 0,
+        deckIds: inDecks.get(item.cardId) ?? [],
       });
     }
   }

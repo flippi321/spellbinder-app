@@ -11,7 +11,8 @@ import {
 import { getSupabase } from '@/services/supabase';
 import type { Card, Deck } from '@/types';
 import type { CardIdentifier } from '@/types/scryfall';
-import { getOracleId, slimCard } from '@/utils/cards';
+import { getCardId, slimCard } from '@/utils/cards';
+import { GAME_NIGHT_WINDOW_MS } from '@/utils/gameNight';
 
 import type {
   CardRepo,
@@ -35,7 +36,7 @@ import {
   toPlaygroup,
   toProfile,
   toRsvp,
-  type CardRow,
+  type CardVersionWithCardRow,
   type CollectionItemRow,
   type DeckRow,
   type GameNightRow,
@@ -90,23 +91,30 @@ function createSessionRepo(): SessionRepo {
 }
 
 function createCardRepo(): CardRepo {
+  /** Cards first: every version points at its card. */
   const save = async (cards: Card[]) => {
     if (cards.length === 0) return;
-    const rows = cards.map((card) => fromCard(card, getOracleId(card)));
-    for (const part of chunk(rows)) {
-      check(await getSupabase().from('cards').upsert(part, { onConflict: 'scryfall_id' }));
+    const rows = cards.map((card) => fromCard(card, getCardId(card)));
+    const cardRows = [...new Map(rows.map(({ card }) => [card.id, card])).values()];
+    for (const part of chunk(cardRows)) {
+      check(await getSupabase().from('cards').upsert(part, { onConflict: 'id' }));
+    }
+    for (const part of chunk(rows.map(({ version }) => version))) {
+      check(await getSupabase().from('card_versions').upsert(part, { onConflict: 'id' }));
     }
   };
 
-  /** Read from the shared `cards` cache; fetch what's missing from Scryfall and cache it. */
+  /** Read from the shared card cache (versions joined to their card); fetch what's missing from Scryfall and cache it. */
   const lookup = async (
-    column: 'scryfall_id' | 'oracle_id',
+    column: 'id' | 'card_id',
     keys: string[],
     toIdentifier: (key: string) => CardIdentifier,
   ): Promise<Card[]> => {
     const found = new Map<string, Card>();
     for (const part of chunk(keys)) {
-      const rows = check(await getSupabase().from('cards').select('*').in(column, part)) as CardRow[];
+      const rows = check(
+        await getSupabase().from('card_versions').select('*, card:cards(*)').in(column, part),
+      ) as CardVersionWithCardRow[];
       for (const row of rows) found.set(row[column], toCard(row));
     }
     const missing = keys.filter((key) => !found.has(key));
@@ -114,14 +122,14 @@ function createCardRepo(): CardRepo {
       const { cards } = await getCollection(missing.map(toIdentifier));
       const slim = cards.map(slimCard);
       await save(slim);
-      for (const card of slim) found.set(column === 'scryfall_id' ? card.id : getOracleId(card), card);
+      for (const card of slim) found.set(column === 'id' ? card.id : getCardId(card), card);
     }
     return [...found.values()];
   };
 
   return {
-    getByIds: (ids) => lookup('scryfall_id', ids, (id) => ({ id })),
-    getByOracleIds: (oracleIds) => lookup('oracle_id', oracleIds, (oracle_id) => ({ oracle_id })),
+    getByIds: (ids) => lookup('id', ids, (id) => ({ id })),
+    getByCardIds: (cardIds) => lookup('card_id', cardIds, (oracle_id) => ({ oracle_id })),
     async findByName(name, { fuzzy = false } = {}) {
       try {
         const card = slimCard(await (fuzzy ? getNamedFuzzy(name) : getNamedExact(name)));
@@ -133,18 +141,35 @@ function createCardRepo(): CardRepo {
       }
     },
     autocomplete: (query) => autocomplete(query),
-    getPrintings: async (oracleId) => (await getPrintings(oracleId)).map(slimCard),
+    getPrintings: async (cardId) => (await getPrintings(cardId)).map(slimCard),
     save,
   };
 }
 
-function createCollectionRepo(): CollectionRepo {
+/**
+ * Card references are foreign keys, so a write must not name a card the shared cache lacks (one the device cached
+ * before, say). Looking the ids up caches any that are missing.
+ */
+type EnsureCached = { versions(ids: string[]): Promise<unknown>; cards(ids: (string | null)[]): Promise<unknown> };
+
+function createEnsureCached(cards: CardRepo): EnsureCached {
+  return {
+    versions: (ids) => cards.getByIds(ids),
+    cards: (ids) => {
+      const known = ids.filter((id): id is string => !!id);
+      return known.length > 0 ? cards.getByCardIds(known) : Promise.resolve();
+    },
+  };
+}
+
+function createCollectionRepo(ensure: EnsureCached): CollectionRepo {
   return {
     async list(userId) {
       const rows = check(await getSupabase().from('collection_items').select('*').eq('user_id', userId));
       return (rows as CollectionItemRow[]).map(toCollectionItem);
     },
     async upsert(item) {
+      await ensure.versions([item.versionId]);
       const row = check(
         await getSupabase().from('collection_items').upsert(fromCollectionItem(item)).select().single(),
       );
@@ -156,7 +181,7 @@ function createCollectionRepo(): CollectionRepo {
   };
 }
 
-function createDeckRepo(): DeckRepo {
+function createDeckRepo(ensure: EnsureCached): DeckRepo {
   return {
     async list(ownerId) {
       const rows = check(
@@ -170,13 +195,14 @@ function createDeckRepo(): DeckRepo {
     },
     async create(input) {
       const supabase = getSupabase();
+      await ensure.cards([input.commanderCardId, ...input.cards.map((card) => card.cardId)]);
       const row = check(
         await supabase
           .from('decks')
           .insert({
             owner_id: input.ownerId,
             name: input.name,
-            commander_oracle_id: input.commanderOracleId,
+            commander_card_id: input.commanderCardId,
             theme: input.theme,
             bracket: input.bracket,
           })
@@ -190,17 +216,18 @@ function createDeckRepo(): DeckRepo {
       return { ...deck, cards: input.cards };
     },
     async upsertCard(deckId, card) {
+      await ensure.cards([card.cardId]);
       check(
-        await getSupabase().from('deck_cards').upsert(fromDeckCard(deckId, card), { onConflict: 'deck_id,oracle_id' }),
+        await getSupabase().from('deck_cards').upsert(fromDeckCard(deckId, card), { onConflict: 'deck_id,card_id' }),
       );
     },
-    async removeCard(deckId, oracleId) {
-      check(await getSupabase().from('deck_cards').delete().eq('deck_id', deckId).eq('oracle_id', oracleId));
+    async removeCard(deckId, cardId) {
+      check(await getSupabase().from('deck_cards').delete().eq('deck_id', deckId).eq('card_id', cardId));
     },
   };
 }
 
-function createPlaygroupRepo(): PlaygroupRepo {
+function createPlaygroupRepo(ensure: EnsureCached): PlaygroupRepo {
   return {
     async load(userId) {
       const supabase = getSupabase();
@@ -217,7 +244,8 @@ function createPlaygroupRepo(): PlaygroupRepo {
           .from('game_nights')
           .select('*, rsvps(*)')
           .eq('playgroup_id', playgroupId)
-          .gte('starts_at', new Date().toISOString())
+          // Include tonight's game night until 12 h after it starts, so games logged during it attach to it.
+          .gte('starts_at', new Date(Date.now() - GAME_NIGHT_WINDOW_MS).toISOString())
           .order('starts_at', { ascending: true })
           .limit(1),
         supabase.from('games').select('*').eq('playgroup_id', playgroupId).order('played_at', { ascending: true }),
@@ -255,11 +283,12 @@ function createPlaygroupRepo(): PlaygroupRepo {
       check(await getSupabase().from('loan_requests').update({ status }).eq('id', loanId));
     },
     async requestLoan(request) {
+      await ensure.cards([request.cardId]);
       const row = check(
         await getSupabase()
           .from('loan_requests')
           .insert({
-            card_oracle_id: request.cardOracleId,
+            card_id: request.cardId,
             requester_id: request.requesterId,
             owner_id: request.ownerId,
             note: request.note,
@@ -270,6 +299,7 @@ function createPlaygroupRepo(): PlaygroupRepo {
       return toLoan(row as LoanRequestRow);
     },
     async logGame(game) {
+      await ensure.cards([game.winnerCommanderCardId]);
       const row = check(
         await getSupabase()
           .from('games')
@@ -277,7 +307,8 @@ function createPlaygroupRepo(): PlaygroupRepo {
             playgroup_id: game.playgroupId,
             played_at: game.playedAt,
             winner_id: game.winnerId,
-            winner_commander_oracle_id: game.winnerCommanderOracleId,
+            winner_commander_card_id: game.winnerCommanderCardId,
+            game_night_id: game.gameNightId,
             player_count: game.playerCount,
             duration_minutes: game.durationMinutes,
           })
@@ -290,11 +321,13 @@ function createPlaygroupRepo(): PlaygroupRepo {
 }
 
 export function createSupabaseRepos(): Repos {
+  const cards = createCardRepo();
+  const ensure = createEnsureCached(cards);
   return {
     session: createSessionRepo(),
-    cards: createCardRepo(),
-    collection: createCollectionRepo(),
-    decks: createDeckRepo(),
-    playgroup: createPlaygroupRepo(),
+    cards,
+    collection: createCollectionRepo(ensure),
+    decks: createDeckRepo(ensure),
+    playgroup: createPlaygroupRepo(ensure),
   };
 }

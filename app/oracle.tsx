@@ -19,7 +19,7 @@ import { useOracleStore } from '@/stores/useOracleStore';
 import { usePlaygroupStore } from '@/stores/usePlaygroupStore';
 import { colors, layout, radii, spacing, typography } from '@/theme';
 import type { Card as MtgCard, OracleAction, OracleCardChip } from '@/types';
-import { getOracleId } from '@/utils/cards';
+import { getCardId } from '@/utils/cards';
 import { messageOf } from '@/utils/errors';
 import { shortDeckName } from '@/utils/format';
 
@@ -35,7 +35,7 @@ async function runAction(action: OracleAction): Promise<string> {
     case 'applySwaps': {
       const deck = useDeckStore.getState().decks.find((d) => d.name === action.deckName);
       if (!deck) throw new Error(`You don’t have ${action.deckName} any more.`);
-      const remove = await Promise.all(action.remove.map(async (name) => getOracleId(await requireCard(name))));
+      const remove = await Promise.all(action.remove.map(async (name) => getCardId(await requireCard(name))));
       const add = await Promise.all(
         action.add.map(async ({ name, category }) => ({ card: await requireCard(name), category })),
       );
@@ -52,7 +52,7 @@ async function runAction(action: OracleAction): Promise<string> {
       const owner = usePlaygroupStore.getState().members.find((m) => m.displayName === action.ownerName);
       if (!owner) throw new Error(`${action.ownerName} isn’t in your playgroup.`);
       const card = await requireCard(action.cardName);
-      await usePlaygroupStore.getState().requestLoan(getOracleId(card), owner.id);
+      await usePlaygroupStore.getState().requestLoan(getCardId(card), owner.id);
       return `Asked ${owner.displayName} for ${card.name}`;
     }
   }

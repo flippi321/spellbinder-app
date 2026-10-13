@@ -21,9 +21,11 @@ and routes. Reuse what already exists — check `src/utils/`, `src/stores/select
 
 ## 1. Domain types — `src/types/domain.ts`
 - camelCase fields, ISO-string dates, string-literal unions for statuses (see `LoanStatus`, `RsvpStatus`).
-- **Card identity rule:** anything about a physical copy (collection) stores the Scryfall printing `id` plus `oracleId`;
-  anything about a deck or "a card in general" (deck slots, loans, wishlists) stores **`oracleId`** only.
-  "Do I own this?" always joins on `oracleId` (`src/stores/selectors/ownership.ts`).
+- **Card identity rule:** anything about a physical copy (collection) stores the `versionId` (Scryfall printing `id`) plus `cardId`;
+  anything about a deck or "a card in general" (deck slots, loans, games, wishlists) stores **`cardId`** only.
+  "Do I own this?" always joins on `cardId` (`src/stores/selectors/ownership.ts`). In Supabase every card reference is
+  a foreign key to `cards` / `card_versions`, so a repo write must make sure the card is cached first (see `ensure` in
+  `supabaseRepos.ts`).
 - Re-export from `src/types/index.ts` if you add a file.
 
 ## 2. Repository contract — `src/data/repositories.ts`

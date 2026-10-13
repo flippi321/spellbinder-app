@@ -43,12 +43,12 @@ export default function BinderScreen() {
   const [adding, setAdding] = useState(false);
 
   const filtered = useMemo(
-    () => filterBinder(entries, { query, colors: colorFilter, type }, (entry) => cards[entry.scryfallId]),
+    () => filterBinder(entries, { query, colors: colorFilter, type }, (entry) => cards[entry.versionId]),
     [entries, query, colorFilter, type, cards],
   );
 
   const openCard = useCallback(
-    (entry: BinderEntry) => router.push({ pathname: '/card/[id]', params: { id: entry.scryfallId } }),
+    (entry: BinderEntry) => router.push({ pathname: '/card/[id]', params: { id: entry.versionId } }),
     [],
   );
 
@@ -97,10 +97,10 @@ export default function BinderScreen() {
     <View style={styles.screen}>
       <FlatList
         data={filtered}
-        keyExtractor={(entry) => entry.oracleId}
+        keyExtractor={(entry) => entry.cardId}
         numColumns={2}
         ListHeaderComponent={header}
-        renderItem={({ item }) => <CardTile entry={item} card={cards[item.scryfallId]} onPress={openCard} />}
+        renderItem={({ item }) => <CardTile entry={item} card={cards[item.versionId]} onPress={openCard} />}
         columnWrapperStyle={styles.column}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.sm, paddingBottom: tabBarInset }]}
         keyboardShouldPersistTaps="handled"

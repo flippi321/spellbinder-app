@@ -1,7 +1,7 @@
 import type { ImageSize, ScryfallCard, ScryfallCardFace } from '@/types/scryfall';
 
-/** Oracle id of a card. Reversible cards only carry it on their faces. */
-export function getOracleId(card: ScryfallCard): string {
+/** Card id: shared by every version (Scryfall calls it oracle_id). Reversible cards only carry it on their faces. */
+export function getCardId(card: ScryfallCard): string {
   return card.oracle_id ?? card.card_faces?.[0]?.oracle_id ?? card.id;
 }
 

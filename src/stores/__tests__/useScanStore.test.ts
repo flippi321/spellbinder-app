@@ -25,12 +25,12 @@ const atraxa: Deck = {
   id: 'deck-atraxa',
   ownerId: 'me',
   name: "Atraxa, Praetors' Voice",
-  commanderOracleId: 'oracle-Atraxa',
-  partnerOracleId: null,
+  commanderCardId: 'oracle-Atraxa',
+  partnerCardId: null,
   theme: '',
   bracket: 3,
   createdAt: '',
-  cards: [{ oracleId: 'oracle-Atraxa', quantity: 1, category: 'Commander', isCommander: true }],
+  cards: [{ cardId: 'oracle-Atraxa', quantity: 1, category: 'Commander', isCommander: true }],
 };
 
 const findByName = jest.fn(async (name: string) => (name === 'Nothing' ? null : makeCard(name)));
@@ -71,7 +71,7 @@ describe('scan flow', () => {
     await scan().confirmAdd();
 
     const [item] = useCollectionStore.getState().items;
-    expect(item).toMatchObject({ scryfallId: 'print-Sol Ring', oracleId: 'oracle-Sol Ring', quantity: 2, foil: true });
+    expect(item).toMatchObject({ versionId: 'print-Sol Ring', cardId: 'oracle-Sol Ring', quantity: 2, finish: 'foil' });
     expect(upsertItem).toHaveBeenCalledTimes(1);
 
     expect(scan()).toMatchObject({ status: 'scanning', match: null, foil: false, quantity: 1 });
@@ -88,18 +88,18 @@ describe('scan flow', () => {
     await scan().capture(null);
     await scan().confirmAdd();
 
-    expect(useCollectionStore.getState().items).toEqual([expect.objectContaining({ quantity: 2, foil: false })]);
+    expect(useCollectionStore.getState().items).toEqual([expect.objectContaining({ quantity: 2, finish: 'nonfoil' })]);
     expect(scan().session).toHaveLength(2);
   });
 
-  it('adds to a deck by oracle id when the destination is a deck', async () => {
+  it('adds to a deck by card id when the destination is a deck', async () => {
     const scan = useScanStore.getState;
     scan().setDestination({ kind: 'deck', deckId: atraxa.id });
     await scan().capture(null);
     await scan().confirmAdd();
 
     const deck = useDeckStore.getState().decks[0];
-    expect(deck.cards.map((c) => c.oracleId)).toContain('oracle-Sol Ring');
+    expect(deck.cards.map((c) => c.cardId)).toContain('oracle-Sol Ring');
     expect(upsertDeckCard).toHaveBeenCalled();
     expect(useCollectionStore.getState().items).toHaveLength(0);
     expect(scan().toast?.message).toBe('Added Sol Ring to Atraxa');

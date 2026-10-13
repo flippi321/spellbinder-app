@@ -71,13 +71,13 @@ function createMockCardRepo(): CardRepo {
       }
     },
 
-    async getByOracleIds(oracleIds) {
+    async getByCardIds(cardIds) {
       const found: Card[] = [];
       const missing: string[] = [];
-      for (const oracleId of oracleIds) {
-        const card = catalog.byOracle(oracleId);
+      for (const cardId of cardIds) {
+        const card = catalog.byCardId(cardId);
         if (card) found.push(card);
-        else missing.push(oracleId);
+        else missing.push(cardId);
       }
       if (missing.length === 0) return found;
       try {
@@ -105,11 +105,11 @@ function createMockCardRepo(): CardRepo {
       }
     },
 
-    async getPrintings(oracleId) {
+    async getPrintings(cardId) {
       try {
-        return (await getPrintings(oracleId)).map(slimCard);
+        return (await getPrintings(cardId)).map(slimCard);
       } catch {
-        const card = catalog.byOracle(oracleId);
+        const card = catalog.byCardId(cardId);
         return card ? [card] : [];
       }
     },
@@ -150,18 +150,18 @@ function createMockDeckRepo(): DeckRepo {
       return all().filter((deck) => deck.ownerId === ownerId);
     },
     async create(input) {
-      const deck: Deck = { ...input, id: createId(), partnerOracleId: null, createdAt: new Date().toISOString() };
+      const deck: Deck = { ...input, id: createId(), partnerCardId: null, createdAt: new Date().toISOString() };
       decks = [...all(), deck];
       return deck;
     },
     async upsertCard(deckId, card) {
       update(deckId, (deck) => ({
         ...deck,
-        cards: [...deck.cards.filter((c) => c.oracleId !== card.oracleId), card],
+        cards: [...deck.cards.filter((c) => c.cardId !== card.cardId), card],
       }));
     },
-    async removeCard(deckId, oracleId) {
-      update(deckId, (deck) => ({ ...deck, cards: deck.cards.filter((c) => c.oracleId !== oracleId) }));
+    async removeCard(deckId, cardId) {
+      update(deckId, (deck) => ({ ...deck, cards: deck.cards.filter((c) => c.cardId !== cardId) }));
     },
   };
 }

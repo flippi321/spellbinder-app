@@ -29,7 +29,7 @@ Look at what changed: `git status` and `git diff` (plus `git diff --cached`). Au
 | 2 | Screens never call services or `fetch` | Imports from `@/services/` in `app/**` or `src/components/**` (types and pure helpers like `getImageUri` are fine) |
 | 3 | Stores → repositories → services | Stores import `getRepos()`, not Supabase or Scryfall clients directly (pure helpers from `@/utils` are fine) |
 | 4 | Scryfall only through the shared client | `api.scryfall.com` anywhere except `src/services/scryfallClient.ts`; a new `createScryfallClient(` in app code |
-| 5 | Card identity | Collection rows keyed by printing `id` + `oracleId`; deck cards, loans and ownership by `oracleId` (via `getOracleId`) |
+| 5 | Card identity | Collection rows keyed by `versionId` + `cardId`; deck cards, loans, games and ownership by `cardId` (via `getCardId`) |
 | 6 | Card images | No `resizeMode`/`contentFit="cover"` on full card images; every `art_crop` / `variant="art"` has artist credit nearby |
 | 7 | Theme tokens | No raw colors in `src/stores`, `src/utils` either; no `fontWeight` on Cinzel/Manrope text; spacing from tokens |
 | 8 | Accessibility | Every `IconButton`/icon-only `Pressable` has `accessibilityLabel`; touch targets ≥ 44 pt; toggles/tabs have `accessibilityRole`/`accessibilityState` |

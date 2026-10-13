@@ -5,7 +5,7 @@ import { config } from '@/config';
 import { getRepos } from '@/data';
 import type { Card, Deck, DeckCard } from '@/types';
 import { defaultCategoryFor } from '@/utils/category';
-import { getOracleId, isBasicLand } from '@/utils/cards';
+import { getCardId, isBasicLand } from '@/utils/cards';
 import { messageOf } from '@/utils/errors';
 
 import { persistStorage, STORE_KEYS } from './storage';
@@ -13,6 +13,18 @@ import { useCardStore } from './useCardStore';
 import { useSessionStore } from './useSessionStore';
 
 export type AddToDeckResult = 'added' | 'already-in-deck';
+
+/** A deck saved before persist version 2 → today's names (oracle ids became card ids). */
+function migrateDeck(deck: Record<string, unknown>): Deck {
+  const { commanderOracleId, partnerOracleId, ...rest } = deck;
+  const cards = (rest.cards ?? []) as Record<string, unknown>[];
+  return {
+    ...rest,
+    commanderCardId: rest.commanderCardId ?? commanderOracleId,
+    partnerCardId: rest.partnerCardId ?? partnerOracleId ?? null,
+    cards: cards.map(({ oracleId, ...card }) => ({ ...card, cardId: card.cardId ?? oracleId })),
+  } as Deck;
+}
 
 interface DeckState {
   decks: Deck[];
@@ -22,10 +34,10 @@ interface DeckState {
   load(ownerId: string): Promise<void>;
   /** New deck led by `commander`; it starts with just the commander. */
   createDeck(commander: Card): Promise<Deck>;
-  /** Adds a card (singleton: a second copy only for basic lands). Stored by oracle id. */
+  /** Adds a card (singleton: a second copy only for basic lands). Stored by card id. */
   addCard(deckId: string, card: Card, options?: { category?: string; quantity?: number }): Promise<AddToDeckResult>;
-  removeCard(deckId: string, oracleId: string): Promise<void>;
-  /** Oracle "Apply these swaps": remove oracle ids, add cards. */
+  removeCard(deckId: string, cardId: string): Promise<void>;
+  /** Oracle "Apply these swaps": remove card ids, add cards. */
   applySwaps(deckId: string, remove: readonly string[], add: readonly { card: Card; category: string }[]): Promise<void>;
   reset(): void;
 }
@@ -60,22 +72,22 @@ export const useDeckStore = create<DeckState>()(
               set({ loading: false, error: messageOf(error) });
             }
           }
-          const oracleIds = get().decks.flatMap((deck) => deck.cards.map((card) => card.oracleId));
-          await useCardStore.getState().ensureOracleIds(oracleIds).catch(() => undefined);
+          const cardIds = get().decks.flatMap((deck) => deck.cards.map((card) => card.cardId));
+          await useCardStore.getState().ensureCardIds(cardIds).catch(() => undefined);
         },
 
         async createDeck(commander) {
           const ownerId = useSessionStore.getState().user?.id;
           if (!ownerId) throw new Error('Sign in to create decks.');
           useCardStore.getState().put([commander]);
-          const commanderOracleId = getOracleId(commander);
+          const commanderCardId = getCardId(commander);
           const deck = await getRepos().decks.create({
             ownerId,
             name: commander.name,
-            commanderOracleId,
+            commanderCardId,
             theme: 'New deck',
             bracket: 2,
-            cards: [{ oracleId: commanderOracleId, quantity: 1, category: 'Commander', isCommander: true }],
+            cards: [{ cardId: commanderCardId, quantity: 1, category: 'Commander', isCommander: true }],
           });
           set((state) => ({ decks: [...state.decks, deck] }));
           return deck;
@@ -85,25 +97,25 @@ export const useDeckStore = create<DeckState>()(
           const deck = get().decks.find((d) => d.id === deckId);
           if (!deck) throw new Error('Deck not found');
           useCardStore.getState().put([card]);
-          const oracleId = getOracleId(card);
-          const existing = deck.cards.find((c) => c.oracleId === oracleId);
+          const cardId = getCardId(card);
+          const existing = deck.cards.find((c) => c.cardId === cardId);
           if (existing && !isBasicLand(card)) return 'already-in-deck';
 
           const slot: DeckCard = existing
             ? { ...existing, quantity: existing.quantity + quantity }
-            : { oracleId, quantity: isBasicLand(card) ? quantity : 1, category: category ?? defaultCategoryFor(card), isCommander: false };
-          updateDeck(deckId, (d) => ({ ...d, cards: [...d.cards.filter((c) => c.oracleId !== oracleId), slot] }));
+            : { cardId, quantity: isBasicLand(card) ? quantity : 1, category: category ?? defaultCategoryFor(card), isCommander: false };
+          updateDeck(deckId, (d) => ({ ...d, cards: [...d.cards.filter((c) => c.cardId !== cardId), slot] }));
           await writeThrough(() => getRepos().decks.upsertCard(deckId, slot));
           return 'added';
         },
 
-        async removeCard(deckId, oracleId) {
-          updateDeck(deckId, (d) => ({ ...d, cards: d.cards.filter((c) => c.oracleId !== oracleId) }));
-          await writeThrough(() => getRepos().decks.removeCard(deckId, oracleId));
+        async removeCard(deckId, cardId) {
+          updateDeck(deckId, (d) => ({ ...d, cards: d.cards.filter((c) => c.cardId !== cardId) }));
+          await writeThrough(() => getRepos().decks.removeCard(deckId, cardId));
         },
 
         async applySwaps(deckId, remove, add) {
-          for (const oracleId of remove) await get().removeCard(deckId, oracleId);
+          for (const cardId of remove) await get().removeCard(deckId, cardId);
           for (const { card, category } of add) await get().addCard(deckId, card, { category });
         },
 
@@ -112,9 +124,15 @@ export const useDeckStore = create<DeckState>()(
     },
     {
       name: STORE_KEYS.decks,
-      version: 1,
+      version: 2,
       storage: persistStorage,
       partialize: ({ decks, seeded }) => ({ decks, seeded }),
+      // v1 decks named card ids oracleId / commanderOracleId / partnerOracleId.
+      migrate: (persisted, version) => {
+        const state = (persisted ?? {}) as { decks?: Record<string, unknown>[]; seeded?: boolean };
+        if (version < 2) return { decks: (state.decks ?? []).map(migrateDeck), seeded: state.seeded ?? false };
+        return persisted as Pick<DeckState, 'decks' | 'seeded'>;
+      },
     },
   ),
 );

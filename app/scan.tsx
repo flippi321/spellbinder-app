@@ -24,7 +24,7 @@ import { useCollectionStore } from '@/stores/useCollectionStore';
 import { useDeckStore } from '@/stores/useDeckStore';
 import { useScanStore } from '@/stores/useScanStore';
 import { colors, layout, radii, spacing } from '@/theme';
-import { getOracleId } from '@/utils/cards';
+import { getCardId } from '@/utils/cards';
 import { shortDeckName } from '@/utils/format';
 
 const IS_SIMULATOR = Platform.OS !== 'web' && !Device.isDevice;
@@ -69,11 +69,11 @@ export default function ScanScreen() {
 
   const deck = destination.kind === 'deck' ? decks.find((d) => d.id === destination.deckId) : undefined;
   const destinationLabel = deck ? shortDeckName(deck.name) : 'Binder';
-  const matchOracle = match ? getOracleId(match.card) : null;
+  const matchOracle = match ? getCardId(match.card) : null;
   const owned = matchOracle
-    ? items.filter((i) => i.oracleId === matchOracle).reduce((sum, i) => sum + i.quantity, 0)
+    ? items.filter((i) => i.cardId === matchOracle).reduce((sum, i) => sum + i.quantity, 0)
     : 0;
-  const deckCount = matchOracle ? decks.filter((d) => d.cards.some((c) => c.oracleId === matchOracle)).length : 0;
+  const deckCount = matchOracle ? decks.filter((d) => d.cards.some((c) => c.cardId === matchOracle)).length : 0;
   const frameWidth = Math.min(width * 0.68, (height * 0.46) * layout.cardAspect);
 
   const shoot = async () => {
@@ -205,7 +205,7 @@ export default function ScanScreen() {
         <PrintingsSheet
           visible={changingPrinting}
           onClose={() => setChangingPrinting(false)}
-          oracleId={getOracleId(match.card)}
+          cardId={getCardId(match.card)}
           currentId={match.card.id}
           onPick={(card) => useScanStore.getState().selectCard(card, match.confidence)}
         />

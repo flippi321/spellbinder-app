@@ -12,7 +12,7 @@ interface CategorySectionProps {
   group: DeckCategoryGroup;
   expanded: boolean;
   onToggle: () => void;
-  cardOf: (oracleId: string) => Card | undefined;
+  cardOf: (cardId: string) => Card | undefined;
   membersById: ReadonlyMap<string, Profile>;
 }
 
@@ -44,9 +44,9 @@ export function CategorySection({ group, expanded, onToggle, cardOf, membersById
         <View style={styles.rows}>
           {group.rows.map((row) => (
             <DeckSlotRow
-              key={row.slot.oracleId}
+              key={row.slot.cardId}
               slot={row.slot}
-              card={cardOf(row.slot.oracleId)}
+              card={cardOf(row.slot.cardId)}
               status={row.status}
               membersById={membersById}
             />
