@@ -90,11 +90,14 @@ the seed, run `npm run seed:cards`. A seed-integrity test keeps the numbers from
 1,284 cards · 618 spare · 64 foils, …).
 
 **Supabase mode.**
-1. The database is set up from the `spellbinder-db` repo (see its README).
-2. Set `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` (the project's **publishable** key) and
-   `EXPO_PUBLIC_DATA_MODE=supabase`. For the local stack in `spellbinder-db`, use `http://<your LAN IP>:54321` and the
-   local key from `npx supabase status`.
-3. Sign-in is email + password (no emails are sent). The sign-in screen isn't built yet (TODO SB-6).
+1. The backend is the **live** hosted Supabase project `fobbpfvhnelpforjqugd`. Its schema is managed in the
+   `spellbinder-db` repo and pushed from there (see its README).
+2. Set `EXPO_PUBLIC_SUPABASE_URL=https://fobbpfvhnelpforjqugd.supabase.co`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` (the
+   project's **publishable** key, `sb_publishable_…`) and `EXPO_PUBLIC_DATA_MODE=supabase`, then restart with
+   `npx expo start -c` (the values are baked into the bundle). To use the local stack in `spellbinder-db` instead,
+   use `http://<your LAN IP>:54321` and the local key from `npx supabase status`.
+3. Signed out, the app shows the sign-in screen: email + password, "Create account" and "Forgot password?".
+   Accounts made there are real accounts on the live project.
 4. Oracle: deploy the `oracle` function from `spellbinder-db`, then set `EXPO_PUBLIC_ORACLE_MODE=edge`.
 
 ## Scryfall etiquette

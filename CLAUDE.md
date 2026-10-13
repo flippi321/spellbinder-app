@@ -15,6 +15,8 @@ it before making product or UI decisions.
 - **Supabase** (Postgres + Auth + Row Level Security + Edge Functions) as the backend. The backend (migrations, RLS,
   Edge Functions, its own CLAUDE.md and skills) lives in the sibling repo **`../spellbinder-db`**, shared with the
   website. This repo holds no SQL; it consumes the schema through generated types. Auth is email + password.
+  `spellbinder-db` is linked to the **live** hosted project `fobbpfvhnelpforjqugd`, and migrations are pushed there.
+  `EXPO_PUBLIC_DATA_MODE=supabase` runs the app against that project (README → Data modes), so treat it as real data.
 - **Scryfall API** for all card data and images. We never host card images ourselves.
 - Fonts: **Cinzel** (display) and **Manrope** (UI/body) via `@expo-google-fonts/*`.
 - Icons: inline stroke icons with `react-native-svg` (no emoji, no icon fonts with brand marks).
