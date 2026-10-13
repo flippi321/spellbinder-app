@@ -93,7 +93,7 @@ These change what gets built. Each has a recommendation; record the decision her
 - [x] **D-5 What counts as "spare"?** *Decided:* copies beyond what your decks use. Per card: every copy you own
   (all printings and finishes) minus the copies your decks' slots use; at 0 or below there is none to spare
   (3 Sol Rings, 2 decks → 1 spare). Worked out in the app (`buildBinderEntries`), and the seed now has 927 spare
-  (was 618). To keep one count per printing, migration `0008_collection_items_key.sql` makes
+  (was 618). To keep one count per printing, migration `0007_collection_items_key.sql` makes
   `(user_id, version_id, finish)` the primary key of `collection_items` and drops its `id`.
 - [x] **D-6 Sign-in method.** *Decided:* **email + password**, email confirmations off, and the project sends no email
   (no SMTP). `SessionRepo`'s OTP methods get replaced in SB-6. Apple/Google sign-in can come later.
