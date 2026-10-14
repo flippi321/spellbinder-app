@@ -16,8 +16,10 @@ app/ route (thin) → src/components → src/stores (Zustand) → src/data repos
 Screens and components never call `fetch` or a service directly (ESLint enforces `fetch`; you enforce the rest).
 
 ## 0. Plan the slice
-Write down, before you code: the new or changed domain types, repo methods, store actions, derived values, components
-and routes. Reuse what already exists — check `src/utils/`, `src/stores/selectors/`, `src/components/ui/index.ts`.
+The plan comes from `superpowers:writing-plans` (see the workflow in `CLAUDE.md`). For a slice it must name the new or
+changed domain types, repo methods (mock **and** Supabase), store actions, derived values, components and routes, one
+plan task per layer below, each test first where `CLAUDE.md` requires it. Reuse what already exists — check
+`src/utils/`, `src/stores/selectors/`, `src/components/ui/index.ts`.
 
 ## 1. Domain types — `src/types/domain.ts`
 - camelCase fields, ISO-string dates, string-literal unions for statuses (see `LoanStatus`, `RsvpStatus`).

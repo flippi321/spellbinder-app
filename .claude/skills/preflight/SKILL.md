@@ -1,12 +1,13 @@
 ---
 name: preflight
-description: Spellbinder's definition of done — run typecheck, lint and tests, then audit the change against the CLAUDE.md hard rules that tooling can't catch (secrets, network access outside services, Scryfall etiquette, card identity, accessibility, Expo Go compatibility). Use before saying any coding task is finished, before committing, or when asked to "check", "verify" or "make sure everything passes".
+description: Spellbinder's definition of done — run typecheck, lint and tests, then audit the change against the CLAUDE.md hard rules that tooling can't catch (secrets, network access outside services, Scryfall etiquette, card identity, accessibility, Expo Go compatibility). Use before saying any coding task is finished, before committing, or when asked to "check", "verify" or "make sure everything passes". It is the verification step for superpowers:verification-before-completion and superpowers:finishing-a-development-branch.
 argument-hint: "[--fix]"
 ---
 
 # Preflight
 
-Run all of this before you report a task as done. Report results honestly: if something fails, say what failed and
+Run all of this before you report a task as done; its output is the evidence `superpowers:verification-before-completion`
+asks for. Report results honestly: if something fails, say what failed and
 show the output. Never skip a step or weaken a check (no `eslint-disable`, `@ts-ignore`, `.skip`, or deleted
 assertions) to get to green. With `$ARGUMENTS` = `--fix`, fix what you find and rerun; otherwise report only.
 

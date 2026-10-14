@@ -7,8 +7,10 @@ This is the work list for turning the mock-data boilerplate into a real app. It 
 - Every item has an ID (`SB-3`), a priority, its dependencies, numbered steps and a **Done when** list. Tick the
   checkboxes as you go, and reference the ID in commit messages.
 - **P0** = needed for the app to work with real data. **P1** = needed before friends use it daily. **P2** = polish/later.
-- Use the matching skill from `.claude/skills/` for each item (noted as *Skill:*). Every item finishes with the
-  `preflight` skill (typecheck, lint, tests and the hard-rule audit).
+- Every item runs through the Superpowers workflow in [CLAUDE.md](../CLAUDE.md): claim, worktree, brainstorming from
+  the item's steps (spec in `docs/superpowers/specs/`), a plan (`docs/superpowers/plans/`), then test-first
+  implementation. The plan's tasks use the matching skill from `.claude/skills/` (noted as *Skill:*). Every item
+  finishes with the `preflight` skill (typecheck, lint, tests and the hard-rule audit).
 - The mock mode (`EXPO_PUBLIC_DATA_MODE=mock`) must keep working throughout. Every repo change gets a mock twin.
 - **Running several agents?** Claim the item in `WORKLOG.md` (in the folder that holds both repos) before starting,
   and work in your own worktree. When you finish, tick only your own item's boxes here.
