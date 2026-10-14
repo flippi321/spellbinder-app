@@ -290,9 +290,11 @@ await fireEvent.press(screen.getByLabelText('Increase copies in binder'));
   no `setTimeout` waits in tests.
 - Persisted stores use the AsyncStorage mock; call `AsyncStorage.clear()` in `beforeEach` if a test depends on it.
 
-## Bug fixes
-Write the test that reproduces the bug first, watch it fail, then fix it. Name tests after behavior
-(`'merges repeat scans of the same printing into one stack'`), not after functions.
+## Bug fixes and test order
+When to write the test is `superpowers:test-driven-development`'s job (and `superpowers:systematic-debugging` for
+finding a bug's cause): a bug fix starts with a test that reproduces it and fails. This skill decides where that test
+goes and what it covers. Name tests after behavior (`'merges repeat scans of the same printing into one stack'`), not
+after functions.
 
 ## Done when
 - [ ] Test files are at the mirrored path in `tests/unit/` or `tests/integration/`, chosen by the rule above, using `@/` imports.

@@ -36,17 +36,45 @@ The app must keep running in **Expo Go** until we deliberately move to a dev bui
 
 Run typecheck, lint and tests before saying a task is done.
 
-## Working alongside other agents
+## Workflow (Superpowers) and working alongside other agents
+
+The **Superpowers** plugin is enabled for this repo (`.claude/settings.json`). Its skills (`superpowers:*`) say *how* to
+work: brainstorm, plan, test first, review, verify, finish. This repo's skills (below) and `../spellbinder-db`'s say
+*what* Spellbinder needs. **Where Superpowers and this file disagree, this file wins.**
 
 Several agents may work on this repo and `../spellbinder-db` at the same time. The work list is `docs/TODO.md`;
 who is doing what is in **`WORKLOG.md` in the folder that holds both repos** (`C:\Users\chrbre\Spellbinder\WORKLOG.md`).
-- Before starting a TODO item, read `WORKLOG.md`, follow its rules, and claim the item with the files you'll touch.
-- Work in your own git worktree on a branch named after the item ID. Never in the main checkout while others run.
-- When done, update your row and tick only your own item's boxes in `docs/TODO.md`. Don't merge to `main`.
+
+**Order for a TODO item** (or any new feature; give it an ID first):
+1. Read `WORKLOG.md`, follow its rules, and claim the item with the files you'll touch.
+2. Create your worktree (below) and work only there. Never in the main checkout while others run.
+3. `superpowers:brainstorming`, starting from the TODO item's steps and "Done when". Spec:
+   `docs/superpowers/specs/YYYY-MM-DD-<id>-<topic>-design.md`, committed on your branch.
+4. `superpowers:writing-plans`. Plan: `docs/superpowers/plans/YYYY-MM-DD-<id>-<topic>.md`. Every task names the
+   domain skill it follows (`feature-slice`, `ui-component`, `scryfall`, `seed-data`, `supabase-migration`, …).
+5. `superpowers:subagent-driven-development` or `superpowers:executing-plans`.
+6. Verify, then finish (below). Link the spec and plan in your WORKLOG row's *Note*.
+
+Items that span both repos keep their spec and plan here, in `spellbinder-app`; the db tasks point to them.
+
+- **Worktrees:** `git worktree add ../spellbinder-app-<id> -b <id>` (a sibling folder, as in `WORKLOG.md`). Don't use
+  `.worktrees/` or the harness's own worktree tool: other agents and the log can't see those. Setup: `npm install` and
+  copy `.env` from the main checkout. Baseline: `npx tsc --noEmit`, `npx expo lint`, `npm test`.
+- **Test first:** `superpowers:test-driven-development` is required in `src/utils`, `src/stores`, `src/services`,
+  `src/data` and `scripts/`. In `src/components` and `app/` routes, tests may follow the code within the same task.
+  `write-tests` says where tests go and what they cover.
+- **Verification:** the `preflight` skill is the evidence `superpowers:verification-before-completion` asks for.
+- **Review:** `superpowers:requesting-code-review` between tasks; for screens, also run `vision-review`.
+- **Finishing:** in `superpowers:finishing-a-development-branch`, always pick **"Keep the branch as-is"**. Don't merge,
+  push or open a PR unless the user asks for it in this session; keep the worktree. Then tick only your own item's
+  boxes in `docs/TODO.md` and set your WORKLOG row to `ready to merge`.
+- **Parallel agents** (`superpowers:dispatching-parallel-agents`): only for items whose files don't overlap (see the
+  hot spots in `WORKLOG.md`). Each agent claims its own row and worktree; only one at a time uses the local Supabase stack.
 
 ## Skills (`.claude/skills/`)
 
-Use the matching skill instead of improvising; each one ends with a "Done when" checklist.
+Domain skills: use the matching one inside each plan task instead of improvising; each ends with a "Done when"
+checklist. Process skills come from Superpowers (above).
 
 - `feature-slice` — new data or persisted actions end to end: type → repo (mock + Supabase) → store → selector → UI.
 - `ui-component` — screens and components built to the design system, tokens and accessibility rules.
